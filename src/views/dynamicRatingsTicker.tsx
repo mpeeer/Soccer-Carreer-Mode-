@@ -11,7 +11,7 @@ export function DynamicRatingsTicker({ ratings }: DynamicRatingsTickerProps) {
   return (
     <div className="ea-fc-theme ea-dvr-ticker">
       <div className="ea-dvr-stage">
-        <span className="ea-dvr-fc27-mark">EA SPORTS FC27</span>
+        <span className="ea-dvr-fc27-mark">NORTHSTAR FC</span>
       </div>
       <div className="ea-dvr-title">
         <h3>DYNAMIC RATINGS</h3>
