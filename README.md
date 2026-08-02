@@ -70,7 +70,9 @@ The repository is configured for a project site at:
 
 Every push to `main` triggers `.github/workflows/deploy.yml`. The workflow installs dependencies, runs the production build, uploads `dist/` as a Pages artifact, and deploys it to GitHub Pages.
 
-To enable the deployment in GitHub:
+The repository also includes a branch-root fallback. If Pages is configured to serve the `main` branch root instead of the Actions artifact, the root entry redirects to the committed `dist/` build. After changing source files, run `npm run build` and include the updated `dist/` files in the commit.
+
+To use the preferred deployment mode in GitHub:
 
 1. Open the repository **Settings**.
 2. Open **Pages**.
