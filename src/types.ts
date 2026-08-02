@@ -1,9 +1,18 @@
 import type { ReactNode } from "react"
 
-export type View = 'hub' | 'player' | 'squad' | 'market' | 'academy' | 'club' | 'calendar' | 'transfers' | 'training'
+export type View = 'hub' | 'player' | 'squad' | 'market' | 'academy' | 'club' | 'calendar' | 'transfers' | 'training' | 'transferHub' | 'playerProfile' | 'teamManagement' | 'tactics'
+export type TransferTab = 'shortlist' | 'transferList' | 'loanList' | 'blockedList'
+export type ProfileTab = 'overview' | 'attributes' | 'offers' | 'stats'
+export type PositionLine = 'GK' | 'DEF' | 'MID' | 'ATT'
+export type FormationId = 'fourThreeThree' | 'fourFourTwo' | 'threeFiveTwo'
+export type Mentality = 'Ultra Defensive' | 'Defensive' | 'Balanced' | 'Attacking' | 'Ultra Attacking'
+export type Width = 'Narrow' | 'Normal' | 'Wide'
+export type DefensiveLine = 'Low' | 'Medium' | 'High'
+export type Pressure = 'Low' | 'Medium' | 'High'
+export type PlayStyle = 'Possession' | 'Quick Transitions' | 'Counter Attack' | 'High Press' | 'Wing Play'
 export type CareerMode = 'manager' | 'player'
 export type MatchPhase = 'pre' | 'live' | 'halftime' | 'fulltime' | 'interview'
-export type Position = 'GK' | 'CB' | 'LB' | 'RB' | 'DM' | 'CM' | 'AM' | 'LW' | 'RW' | 'ST'
+export type Position = 'GK' | 'CB' | 'LB' | 'RB' | 'DM' | 'CDM' | 'CM' | 'CAM' | 'AM' | 'LW' | 'LM' | 'RM' | 'RW' | 'ST'
 export type TransferApproach = { id: string; clubName: string; clubShort: string; league: string; identity: string; storyline: string; primaryColor: string; secondaryColor: string; perks: string[]; risks: string[]; managerBudget: number; managerTrust: number; playerWage: number; playerRole: string; playerTraining: number; stage: 'approaching' | 'considering' | 'negotiating' | 'accepted' | 'declined'; arrivalDay: number; arrivalWeek: number; counterDemand: string }
 export type PlayerSkills = { pace: number; shooting: number; passing: number; dribbling: number; physical: number }
 export type TrainingSession = { id: string; label: string; skill: keyof PlayerSkills; description: string; energyCost: number; icon: string }
@@ -25,6 +34,21 @@ export type Player = {
   initials: string
   color: string
   skills: PlayerSkills
+  // EA FC 27-style fields
+  club?: string
+  flag?: string
+  dob?: string
+  height?: string
+  weight?: string
+  preferredFoot?: 'Left' | 'Right' | 'Both'
+  weakFoot?: number
+  skillMoves?: number
+  reputation?: string
+  matchFitness?: string
+  condition?: string
+  dynamicChange?: number // +/- rating change shown in TODAY'S DVR
+  shirtNumber?: number
+  releaseClause?: number
 }
 
 export type Fixture = {
@@ -135,6 +159,44 @@ export type SimulationEvent = {
   detail: string
 }
 
+export type DynamicRating = {
+  id: number
+  playerId: number
+  playerName: string
+  rating: number
+  change: number
+  reason: string
+  tier?: 'bronze' | 'silver' | 'gold' | 'elite' | 'legend' // visual tier for puff animation
+  instant?: boolean // flag for puff animation when set in last tick
+}
+
+export type Tactics = {
+  formation: FormationId
+  mentality: Mentality
+  width: Width
+  defensiveLine: DefensiveLine
+  pressure: Pressure
+  playStyle: PlayStyle
+  captain: number | null
+  setPieces: number | null
+  penaltyTaker: number | null
+}
+
+export type Formation = {
+  id: FormationId
+  label: string
+  description: string
+  slots: FormationSlot[]
+}
+
+export type FormationSlot = {
+  position: Position
+  row: number   // 0 = GK, 1 = defense, 2 = midfield, 3 = attack
+  col: number   // horizontal offset
+  x: number     // percentage 0–100
+  y: number     // percentage 0–100
+}
+
 export type SavedCareer = {
   profile: CareerProfile
   clubOffer: ClubOffer | null
@@ -146,6 +208,9 @@ export type SavedCareer = {
   shortlist: number[]
   scouted: number[]
   negotiations: number[]
+  transferList: number[]
+  loanList: number[]
+  blockedList: number[]
   fixtureResults: Record<number, string>
   dateIndex: number
   budget: number
@@ -162,6 +227,10 @@ export type SavedCareer = {
   rivalryScore: number
   managerTrust: number
   simulationEvents: SimulationEvent[]
+  dynamicRatings: DynamicRating[]
+  tactics: Tactics
+  transferComments: Record<number, { from: string; text: string; at: number }[]> // prospect/comment
+  transferReports: Record<number, { match: string; result: string; minutes: number; goals: number; assists: number; rating: number }[]> // prospect -> recent matches
 }
 
 export type SavedCareerEnvelope = {

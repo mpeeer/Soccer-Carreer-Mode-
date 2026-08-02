@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
-import type { View, CareerMode, MatchPhase, Position, TransferApproach, PlayerSkills, TrainingSession, Player, Fixture, CareerProfile, ClubOffer, OnboardingSave, Prospect, PlayerMatch, ManagerMatch, SimulationEvent, SavedCareer, SavedCareerEnvelope, SaveStatus } from './types'
-import { SAVE_KEY, PROFILE_KEY, ONBOARDING_KEY, CURRENT_SAVE_VERSION, initialPlayers, seasonFixtures, prospects, clubOfferPool, trainingSessions, transferClubPool, navItems, playerNavItems, formatFixtureDate, createClubOffers } from './data'
+import type { View, CareerMode, MatchPhase, Position, TransferApproach, PlayerSkills, TrainingSession, Player, Fixture, CareerProfile, ClubOffer, OnboardingSave, Prospect, PlayerMatch, ManagerMatch, SimulationEvent, SavedCareer, SavedCareerEnvelope, SaveStatus, TransferTab, Tactics } from './types'
+import { SAVE_KEY, PROFILE_KEY, ONBOARDING_KEY, CURRENT_SAVE_VERSION, initialPlayers, seasonFixtures, prospects, clubOfferPool, trainingSessions, transferClubPool, navItems, playerNavItems, formatFixtureDate, createClubOffers, seedDynamicRatings, defaultTactics } from './data'
 import { backupLegacySaveIfNeeded, readSavedOnboarding, readSavedCareer, profileFromOffer, formatMoney, formatSavedTime, createCareerPlayer, createLegacyClubOffer, Icon } from './utils'
+import { TransferHub } from './views/transferHub'
+import { PlayerProfile } from './views/playerProfile'
+import { TeamManagement } from './views/teamManagement'
+import { DynamicRatingsTicker } from './views/dynamicRatingsTicker'
+import { TacticsView } from './views/tactics'
+import { PlayerPortrait } from './portraits/playerPortrait'
 
 function App() {
   const savedCareer = readSavedCareer()
@@ -25,7 +31,14 @@ function App() {
     }
     return restoredProfile?.mode === 'player' ? [...initialPlayers, createCareerPlayer(restoredProfile, restoredOffer)] : initialPlayers
   })
-  const [shortlist, setShortlist] = useState<number[]>(savedCareer?.shortlist ?? [101, 104])
+  const [shortlist, setShortlist] = useState<number[]>(savedCareer?.shortlist ?? [101, 110, 107, 109, 102, 108, 104, 106, 105, 103, 111, 112])
+  const [transferList, setTransferList] = useState<number[]>(savedCareer?.transferList ?? [])
+  const [loanList, setLoanList] = useState<number[]>(savedCareer?.loanList ?? [])
+  const [blockedList, setBlockedList] = useState<number[]>(savedCareer?.blockedList ?? [])
+  const [dynamicRatings, setDynamicRatings] = useState<import('./types').DynamicRating[]>(savedCareer?.dynamicRatings ?? seedDynamicRatings)
+  const [tactics, setTactics] = useState<Tactics>(defaultTactics)
+  const [transferComments, setTransferComments] = useState<Record<number, { from: string; text: string; at: number }[]>>({})
+  const [transferReports, setTransferReports] = useState<Record<number, { match: string; result: string; minutes: number; goals: number; assists: number; rating: number }[]>>({})
   const [scouted, setScouted] = useState<number[]>(savedCareer?.scouted ?? [])
   const [negotiations, setNegotiations] = useState<number[]>(savedCareer?.negotiations ?? [])
   const [fixtureResults, setFixtureResults] = useState<Record<number, string>>(savedCareer?.fixtureResults ?? {})
@@ -88,7 +101,7 @@ function App() {
   const saveCareer = useCallback(() => {
     if (!profile) return false
     const nextSavedAt = Date.now()
-    const career: SavedCareer = { profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, trainingEnergy, lastTrainingDay, rivalryScore, managerTrust, simulationEvents }
+    const career: SavedCareer = { profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, transferList, loanList, blockedList, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, trainingEnergy, lastTrainingDay, rivalryScore, managerTrust, simulationEvents, dynamicRatings, tactics: defaultTactics, transferComments: {}, transferReports: {} }
     // Persist transfer approaches alongside the career (not in SavedCareer type to keep backward compat)
     try { window.localStorage.setItem('northstar-transfers', JSON.stringify(transferApproaches)) } catch { /* non-critical */ }
     const envelope: SavedCareerEnvelope = { version: CURRENT_SAVE_VERSION, savedAt: nextSavedAt, career }
@@ -103,7 +116,7 @@ function App() {
       setSaveStatus('error')
       return false
     }
-  }, [profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, trainingEnergy, lastTrainingDay, rivalryScore, managerTrust, simulationEvents])
+  }, [profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, transferList, loanList, blockedList, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, trainingEnergy, lastTrainingDay, rivalryScore, managerTrust, simulationEvents, dynamicRatings, tactics])
 
   useEffect(() => {
     if (!profile || !isClockRunning || simulationSpeed === 0 || playerMatchPhase) return
@@ -182,6 +195,23 @@ function App() {
     setWeekNumber((c) => c >= 38 ? 1 : c + 1)
     if (seasonEnds) setSeasonNumber((c) => c + 1)
     setPlayers((c) => c.map((p) => ({ ...p, fitness: Math.max(62, p.fitness - (p.id % 3 === 0 ? 7 : 3)), form: Math.min(99, Math.max(55, p.form + (p.id % 2 === 0 ? 2 : -1))) })))
+    // DVR: push events for top performers and underperformers
+    const sorted = [...managerMatch.playerPerformances].sort((a, b) => b.rating - a.rating)
+    const newDvrs: import('./types').DynamicRating[] = []
+    sorted.slice(0, 2).forEach((pp) => {
+      const p = players.find((pl) => pl.id === pp.id)
+      if (!p) return
+      const boost = pp.rating >= 8 ? 2 : pp.rating >= 7 ? 1 : 0
+      if (boost > 0) {
+        newDvrs.push({ id: Date.now() + Math.random(), playerId: p.id, playerName: p.name, rating: p.rating + boost, change: boost, reason: pp.rating >= 8 ? 'Man of the match' : 'Strong performance', tier: p.rating + boost >= 90 ? 'legend' : p.rating + boost >= 85 ? 'elite' : 'gold', instant: true })
+      }
+    })
+    sorted.slice(-1).forEach((pp) => {
+      const p = players.find((pl) => pl.id === pp.id)
+      if (!p) return
+      if (pp.rating < 6.5) newDvrs.push({ id: Date.now() + 200 + Math.random(), playerId: p.id, playerName: p.name, rating: Math.max(p.rating - 1, 50), change: -1, reason: 'Below par display', tier: 'bronze', instant: true })
+    })
+    if (newDvrs.length > 0) setDynamicRatings((c) => [...newDvrs, ...c].slice(0, 12))
     setManagerMatch(null)
     setSimulationSpeed(1)
     setIsClockRunning(true)
@@ -290,7 +320,11 @@ function App() {
     setIntroComplete(false)
     setActiveView(nextProfile.mode === 'player' ? 'player' : 'hub')
     setPlayers(nextPlayers)
-    setShortlist([101, 104])
+    setShortlist([101, 110, 107, 109, 102, 108, 104, 106, 105, 103, 111, 112])
+    setTransferList([])
+    setLoanList([])
+    setBlockedList([])
+    setDynamicRatings(seedDynamicRatings)
     setScouted([])
     setNegotiations([])
     setFixtureResults({})
@@ -329,7 +363,11 @@ function App() {
     setProfile(null)
     setActiveView('hub')
     setPlayers(initialPlayers)
-    setShortlist([101, 104])
+    setShortlist([101, 110, 107, 109, 102, 108, 104, 106, 105, 103, 111, 112])
+    setTransferList([])
+    setLoanList([])
+    setBlockedList([])
+    setDynamicRatings(seedDynamicRatings)
     setScouted([])
     setNegotiations([])
     setFixtureResults({})
@@ -482,6 +520,21 @@ function App() {
     showToast(shortlist.includes(id) ? 'Removed from shortlist' : 'Added to shortlist')
   }
 
+  const movePlayerToList = (id: number, target: Exclude<TransferTab, 'shortlist'>) => {
+    const setters: Record<Exclude<TransferTab, 'shortlist'>, (updater: (current: number[]) => number[]) => void> = {
+      transferList: setTransferList,
+      loanList: setLoanList,
+      blockedList: setBlockedList,
+    }
+    setShortlist((current) => current.filter((item) => item !== id))
+    setters[target]((current) => current.includes(id) ? current : [...current, id])
+    showToast(`Moved to ${target === 'transferList' ? 'transfer list' : target === 'loanList' ? 'loan list' : 'blocked list'}`)
+  }
+
+  const sendTransferComment = (id: number, text: string) => {
+    setTransferComments((c) => ({ ...c, [id]: [...(c[id] ?? []), { from: 'You', text, at: Date.now() }] }))
+  }
+
   const scoutProspect = (id: number) => {
     setScouted((current) => current.includes(id) ? current : [...current, id])
     showToast('Scout report filed · ready for review')
@@ -576,6 +629,10 @@ function App() {
           {activeView === 'hub' && (careerMode === 'player' ? <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} /> : <HubView profile={profile} budget={budget} dateIndex={dateIndex} fixtureResults={fixtureResults} players={players} managerMatch={managerMatch} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} onFinishMatch={() => finishManagerMatch()} onSubPlayer={(outId, inId) => { setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p)); setManagerMatch((m) => m ? { ...m, events: [...m.events, `SUB: ${players.find((p) => p.id === inId)?.name ?? ''} replaces ${players.find((p) => p.id === outId)?.name ?? ''}`].slice(-8), playerPerformances: [...m.playerPerformances.filter((pp) => pp.id !== outId), { id: inId, rating: players.find((p) => p.id === inId)?.rating ?? 70 }] } : m); showToast('Substitution made · fresh legs on the pitch') }} continueWeek={continueWeek} openModal={openModal} setActiveView={setActiveView} />)}
           {activeView === 'player' && <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />}
           {activeView === 'squad' && <SquadView players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} openModal={openModal} />}
+          {activeView === 'transferHub' && <TransferHub prospects={prospects} shortlist={shortlist} transferList={transferList} loanList={loanList} blockedList={blockedList} budget={budget} transferComments={transferComments} transferReports={transferReports} onToggleShortlist={toggleShortlist} onMoveTab={movePlayerToList} onSendComment={sendTransferComment} onShowToast={showToast} />}
+          {activeView === 'playerProfile' && <PlayerProfile player={selectedPlayer} setActiveView={setActiveView} onShowToast={showToast} />}
+          {activeView === 'teamManagement' && <TeamManagement players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} setActiveView={setActiveView} tactics={tactics} onSetTacticsView={() => setActiveView('tactics')} onSubPlayer={(outId, inId) => { setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p)); showToast('Substitution made · fresh legs on the pitch') }} onShowToast={showToast} />}
+          {activeView === 'tactics' && <TacticsView players={players} tactics={tactics} onUpdateTactics={(t) => { setTactics(t); showToast(`Tactics set: ${t.formation} · ${t.mentality}`) }} setActiveView={setActiveView} onShowToast={showToast} />}
           {activeView === 'market' && <MarketView filteredProspects={filteredProspects} search={search} setSearch={setSearch} marketFilter={marketFilter} setMarketFilter={setMarketFilter} shortlist={shortlist} scouted={scouted} negotiations={negotiations} toggleShortlist={toggleShortlist} scoutProspect={scoutProspect} startNegotiation={startNegotiation} budget={budget} openModal={openModal} />}
           {activeView === 'academy' && <AcademyView openModal={openModal} setActiveView={setActiveView} />}
           {activeView === 'club' && (careerMode === 'player' ? <PlayerClubView profile={profile} player={selectedPlayer} openModal={openModal} /> : <ClubView budget={budget} requestInvestment={requestInvestment} openModal={openModal} />)}
@@ -585,6 +642,11 @@ function App() {
             showToast(`Counter-offer submitted. ${a.clubName}'s offer improved.`)
           }} />}
           {activeView === 'training' && <TrainingView profile={profile} players={players} trainingEnergy={trainingEnergy} lastTrainingDay={lastTrainingDay} simDay={simDay} doTrainingSession={doTrainingSession} />}
+          {(activeView === 'transferHub' || activeView === 'teamManagement') && (
+            <div className="ea-side-ratings-wrap">
+              <DynamicRatingsTicker ratings={dynamicRatings} />
+            </div>
+          )}
         </div>
       </main>
 
