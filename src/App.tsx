@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { CSSProperties, FormEvent, ReactNode } from 'react'
 
 type View = 'hub' | 'player' | 'squad' | 'market' | 'academy' | 'club'
 type CareerMode = 'manager' | 'player'
@@ -46,6 +46,41 @@ type CareerProfile = {
   playerPosition: Position
 }
 
+type ClubOffer = {
+  id: string
+  clubName: string
+  clubShort: string
+  league: string
+  identity: string
+  philosophy: string
+  description: string
+  primaryColor: string
+  secondaryColor: string
+  pros: string[]
+  cons: string[]
+  managerBudget: number
+  managerTrust: number
+  playerRating: number
+  playerPotential: number
+  playerWage: number
+  playerRole: string
+  playerTraining: number
+  managerResultBoost: number
+  managerBudgetGrowth: number
+  playerTrainingBonus: number
+  playerTrustModifier: number
+}
+
+type OnboardingSave = {
+  mode: CareerMode
+  name: string
+  leaguePreference: string
+  difficulty: string
+  playerPosition: Position
+  offers: ClubOffer[]
+  acceptedOffer?: ClubOffer
+}
+
 type Prospect = {
   id: number
   name: string
@@ -84,6 +119,10 @@ type SimulationEvent = {
 
 type SavedCareer = {
   profile: CareerProfile
+  clubOffer: ClubOffer | null
+  introComplete: boolean
+  seasonNumber: number
+  weekNumber: number
   activeView: View
   players: Player[]
   shortlist: number[]
@@ -106,7 +145,7 @@ type SavedCareer = {
 }
 
 type SavedCareerEnvelope = {
-  version: 1
+  version: 1 | 2
   savedAt: number
   career: SavedCareer
 }
@@ -115,14 +154,53 @@ type SaveStatus = 'saved' | 'saving' | 'error'
 
 const SAVE_KEY = 'northstar-career-save'
 const PROFILE_KEY = 'northstar-career-profile'
-const CURRENT_SAVE_VERSION = 1
+const ONBOARDING_KEY = 'northstar-career-onboarding'
+const LEGACY_SAVE_BACKUP_KEY = 'northstar-career-save-legacy-backup'
+const CURRENT_SAVE_VERSION = 2
 
 const validPositions: Position[] = ['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST']
 
 function isSavedCareerEnvelope(value: unknown): value is SavedCareerEnvelope {
   if (!value || typeof value !== 'object') return false
   const envelope = value as Partial<SavedCareerEnvelope>
-  return envelope.version === CURRENT_SAVE_VERSION && typeof envelope.savedAt === 'number' && Number.isFinite(envelope.savedAt) && Boolean(envelope.career)
+  return (envelope.version === 1 || envelope.version === CURRENT_SAVE_VERSION) && typeof envelope.savedAt === 'number' && Number.isFinite(envelope.savedAt) && Boolean(envelope.career)
+}
+
+function isSavedClubOffer(value: unknown): value is ClubOffer {
+  if (!value || typeof value !== 'object') return false
+  const offer = value as Partial<ClubOffer>
+  return typeof offer.id === 'string' && typeof offer.clubName === 'string' && typeof offer.clubShort === 'string' && typeof offer.league === 'string' && typeof offer.identity === 'string' && typeof offer.philosophy === 'string' && typeof offer.description === 'string' && typeof offer.primaryColor === 'string' && typeof offer.secondaryColor === 'string' && Array.isArray(offer.pros) && offer.pros.every((item) => typeof item === 'string') && Array.isArray(offer.cons) && offer.cons.every((item) => typeof item === 'string') && typeof offer.managerBudget === 'number' && typeof offer.managerTrust === 'number' && typeof offer.playerRating === 'number' && typeof offer.playerPotential === 'number' && typeof offer.playerWage === 'number' && typeof offer.playerRole === 'string' && typeof offer.playerTraining === 'number' && typeof offer.managerResultBoost === 'number' && typeof offer.managerBudgetGrowth === 'number' && typeof offer.playerTrainingBonus === 'number' && typeof offer.playerTrustModifier === 'number'
+}
+
+function isSavedOnboarding(value: unknown): value is OnboardingSave {
+  if (!value || typeof value !== 'object') return false
+  const onboarding = value as Partial<OnboardingSave>
+  return (onboarding.mode === 'manager' || onboarding.mode === 'player') && typeof onboarding.name === 'string' && onboarding.name.trim().length > 0 && typeof onboarding.leaguePreference === 'string' && typeof onboarding.difficulty === 'string' && validPositions.includes(onboarding.playerPosition as Position) && Array.isArray(onboarding.offers) && onboarding.offers.length === 3 && onboarding.offers.every(isSavedClubOffer) && (!onboarding.acceptedOffer || (isSavedClubOffer(onboarding.acceptedOffer) && onboarding.offers.some((offer) => offer.id === onboarding.acceptedOffer?.id)))
+}
+
+function backupLegacySaveIfNeeded() {
+  try {
+    const raw = window.localStorage.getItem(SAVE_KEY)
+    if (!raw || window.localStorage.getItem(LEGACY_SAVE_BACKUP_KEY)) return
+    const parsed = JSON.parse(raw) as Partial<SavedCareerEnvelope>
+    if (parsed.version === 1 || !parsed.version) {
+      window.localStorage.setItem(LEGACY_SAVE_BACKUP_KEY, raw)
+      window.localStorage.removeItem(SAVE_KEY)
+    }
+  } catch {
+    // A malformed old save should not block a fresh career.
+  }
+}
+
+function readSavedOnboarding(): OnboardingSave | null {
+  try {
+    const raw = window.localStorage.getItem(ONBOARDING_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    return isSavedOnboarding(parsed) ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 function isSavedProfile(value: unknown): value is CareerProfile {
@@ -160,22 +238,28 @@ function readSavedCareer(): (SavedCareer & { savedAt?: number }) | null {
     const parsed = (envelope?.career ?? rawParsed) as Partial<SavedCareer>
     if (!isSavedProfile(parsed.profile)) return null
     const profile = parsed.profile
+    if (envelope?.version === 1 || !envelope) return null
+    const migratedClubOffer = isSavedClubOffer(parsed.clubOffer) ? parsed.clubOffer : createLegacyClubOffer(profile)
     const allowedViews = profile.mode === 'player' ? ['hub', 'player', 'squad', 'club'] : ['hub', 'squad', 'market', 'academy', 'club']
     const activeView = typeof parsed.activeView === 'string' && allowedViews.includes(parsed.activeView) ? parsed.activeView as View : profile.mode === 'player' ? 'player' : 'hub'
     const fixtureResults = parsed.fixtureResults && typeof parsed.fixtureResults === 'object' ? Object.fromEntries(Object.entries(parsed.fixtureResults).filter(([key, value]) => /^\d+$/.test(key) && typeof value === 'string')) : {}
-    let dateIndex = boundedNumber(parsed.dateIndex, 0, 0, fixtures.length - 1)
+    let dateIndex = boundedNumber(parsed.dateIndex, 0, 0, seasonFixtures.length - 1)
     dateIndex = Math.floor(dateIndex)
-    while (dateIndex < fixtures.length - 1 && fixtureResults[dateIndex]) dateIndex += 1
+    while (dateIndex < seasonFixtures.length - 1 && fixtureResults[dateIndex]) dateIndex += 1
     const savedPhase = isSavedMatchPhase(parsed.playerMatchPhase) ? parsed.playerMatchPhase : null
     const savedMatch = isSavedPlayerMatch(parsed.playerMatch) ? parsed.playerMatch : null
     const playerMatchPhase = parsed.profile.mode === 'player' && savedPhase && savedMatch ? savedPhase : null
     const playerMatch = playerMatchPhase ? savedMatch : null
     const simulationSpeed = parsed.simulationSpeed === 0 || parsed.simulationSpeed === 1 || parsed.simulationSpeed === 2 || parsed.simulationSpeed === 20 ? parsed.simulationSpeed : 1
-    const simMinute = Math.floor(boundedNumber(parsed.simMinute, 9 * 60 + 30, 0, 24 * 60 - 1))
-    const simDay = Math.floor(boundedNumber(parsed.simDay, 11, 1, 28))
+    const simMinute = Math.floor(boundedNumber(parsed.simMinute, 8 * 60, 0, 24 * 60 - 1))
+    const simDay = Math.floor(boundedNumber(parsed.simDay, 1, 1, 28))
     const players = Array.isArray(parsed.players) && parsed.players.length > 0 && parsed.players.every(isSavedPlayer) ? parsed.players : initialPlayers
     return {
       profile,
+      clubOffer: migratedClubOffer,
+      introComplete: typeof parsed.introComplete === 'boolean' ? parsed.introComplete : true,
+      seasonNumber: Math.floor(boundedNumber(parsed.seasonNumber, 1, 1, 99)),
+      weekNumber: Math.floor(boundedNumber(parsed.weekNumber, 1, 1, 38)),
       activeView,
       players,
       shortlist: parsed.shortlist ?? [101, 104],
@@ -218,12 +302,23 @@ const initialPlayers: Player[] = [
   { id: 13, name: 'Cal Rook', position: 'CB', rating: 70, potential: 78, age: 20, form: 68, morale: 73, fitness: 100, value: 6000000, wage: 11000, contract: 3, role: 'Prospect', initials: 'CR', color: '#798798' },
 ]
 
-const fixtures: Fixture[] = [
+const baseFixtures: Fixture[] = [
   { opponent: 'Redhaven United', short: 'RU', date: 'SAT, AUG 16', competition: 'Premier Division', home: true, difficulty: 'Medium', crest: '#e96a59' },
   { opponent: 'Violet Town', short: 'VT', date: 'WED, AUG 20', competition: 'Continental Cup · Qualifier', home: false, difficulty: 'High', crest: '#8e73d4' },
   { opponent: 'Oldcastle Rovers', short: 'OR', date: 'SUN, AUG 24', competition: 'Premier Division', home: true, difficulty: 'Low', crest: '#56a98e' },
   { opponent: 'Kingsport Athletic', short: 'KA', date: 'SAT, AUG 30', competition: 'Premier Division', home: false, difficulty: 'High', crest: '#e6ae52' },
 ]
+
+function formatFixtureDate(index: number) {
+  const date = new Date(Date.UTC(2026, 7, 15 + index * 7))
+  return `${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }).toUpperCase()}`
+}
+
+const seasonFixtures: Fixture[] = Array.from({ length: 38 }, (_, index) => ({
+  ...baseFixtures[index % baseFixtures.length],
+  date: formatFixtureDate(index),
+  home: index % 2 === 0,
+}))
 
 const prospects: Prospect[] = [
   { id: 101, name: 'Marek Voss', position: 'ST', age: 19, rating: 72, potential: '87–92', value: '€9.4M', interest: 'Very high', club: 'Fjordholm FK', flag: 'NO', color: '#e89a69', tags: ['Poacher', 'Quick step'] },
@@ -231,6 +326,32 @@ const prospects: Prospect[] = [
   { id: 103, name: 'Bastian Kroll', position: 'CB', age: 18, rating: 68, potential: '82–90', value: '€4.8M', interest: 'Medium', club: 'Rhein 04', flag: 'DE', color: '#a981d5', tags: ['Ball winner', 'Aerial'] },
   { id: 104, name: 'Naila Bouchard', position: 'CM', age: 21, rating: 77, potential: '85–88', value: '€21.5M', interest: 'High', club: 'AS Montreux', flag: 'FR', color: '#6ab9a5', tags: ['Deep playmaker', 'Vision'] },
 ]
+
+const clubOfferPool: ClubOffer[] = [
+  { id: 'redhaven', clubName: 'Redhaven United', clubShort: 'RU', league: 'Premier Division', identity: 'The sleeping giant', philosophy: 'Immediate results', description: 'A proud club with a restless fanbase, a strong squad core, and no patience for a slow start.', primaryColor: '#e96a59', secondaryColor: '#f4c46d', pros: ['Experienced squad core', 'Strong home support'], cons: ['Board demands a top-six finish', 'Limited patience for experiments'], managerBudget: 54000000, managerTrust: 67, playerRating: 68, playerPotential: 84, playerWage: 7200, playerRole: 'Prospect', playerTraining: 46, managerResultBoost: 1, managerBudgetGrowth: 250000, playerTrainingBonus: -1, playerTrustModifier: -1 },
+  { id: 'violet', clubName: 'Violet Town', clubShort: 'VT', league: 'Continental League', identity: 'The academy project', philosophy: 'Youth development', description: 'A technical club built around young players, patient coaching, and a clear pathway to the first team.', primaryColor: '#8e73d4', secondaryColor: '#b8a3ff', pros: ['Excellent training facilities', 'Young players get minutes'], cons: ['Small transfer budget', 'Results can take time'], managerBudget: 30500000, managerTrust: 81, playerRating: 67, playerPotential: 89, playerWage: 5800, playerRole: 'First team', playerTraining: 64, managerResultBoost: 0, managerBudgetGrowth: 100000, playerTrainingBonus: 3, playerTrustModifier: 2 },
+  { id: 'oldcastle', clubName: 'Oldcastle Rovers', clubShort: 'OR', league: 'Premier Division', identity: 'The community club', philosophy: 'Stability first', description: 'A grounded club where trust is earned locally and every decision is measured against the supporters.', primaryColor: '#56a98e', secondaryColor: '#d9e6a3', pros: ['Supporters give time', 'Balanced finances'], cons: ['Modest facilities', 'Lower squad ceiling'], managerBudget: 39000000, managerTrust: 86, playerRating: 65, playerPotential: 82, playerWage: 6200, playerRole: 'Rotation', playerTraining: 52, managerResultBoost: 0, managerBudgetGrowth: 350000, playerTrainingBonus: 0, playerTrustModifier: 3 },
+  { id: 'kingsport', clubName: 'Kingsport Athletic', clubShort: 'KA', league: 'Coastal Championship', identity: 'The promotion push', philosophy: 'Win now', description: 'A high-energy club that expects promotion and offers a fast route into the spotlight.', primaryColor: '#e6ae52', secondaryColor: '#274a68', pros: ['Clear promotion target', 'Big match exposure'], cons: ['Heavy pressure every week', 'Thin depth in the squad'], managerBudget: 47000000, managerTrust: 62, playerRating: 69, playerPotential: 83, playerWage: 6800, playerRole: 'First team', playerTraining: 48, managerResultBoost: 1, managerBudgetGrowth: 150000, playerTrainingBonus: -2, playerTrustModifier: -2 },
+  { id: 'fjordholm', clubName: 'Fjordholm FK', clubShort: 'FFK', league: 'Alpine League', identity: 'The modern outpost', philosophy: 'Recruit and develop', description: 'A smart, ambitious club known for finding overlooked talent and giving it a platform.', primaryColor: '#4e9ed4', secondaryColor: '#d8f1ff', pros: ['Modern scouting network', 'High potential pathway'], cons: ['Remote travel schedule', 'Lower league prestige'], managerBudget: 34500000, managerTrust: 78, playerRating: 66, playerPotential: 91, playerWage: 6100, playerRole: 'Crucial', playerTraining: 70, managerResultBoost: 0, managerBudgetGrowth: 200000, playerTrainingBonus: 5, playerTrustModifier: 1 },
+  { id: 'montreux', clubName: 'AS Montreux', clubShort: 'ASM', league: 'Continental League', identity: 'The elegant challenger', philosophy: 'Possession football', description: 'A technical side with a clear playing style, demanding standards, and a chance to compete beyond the league.', primaryColor: '#6ab9a5', secondaryColor: '#f0d3a0', pros: ['Strong tactical identity', 'Continental competition'], cons: ['Strict role requirements', 'Less room for mistakes'], managerBudget: 51500000, managerTrust: 72, playerRating: 70, playerPotential: 87, playerWage: 7600, playerRole: 'Rotation', playerTraining: 58, managerResultBoost: 0, managerBudgetGrowth: 200000, playerTrainingBonus: 1, playerTrustModifier: 0 },
+]
+
+function createClubOffers(leaguePreference: string) {
+  const shuffled = [...clubOfferPool]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1))
+    ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+  }
+  return shuffled.sort((a, b) => Number(b.league === leaguePreference) - Number(a.league === leaguePreference)).slice(0, 3)
+}
+
+function createLegacyClubOffer(profile: CareerProfile): ClubOffer {
+  return { id: 'legacy', clubName: profile.clubName, clubShort: profile.clubShort, league: profile.league, identity: 'Existing career', philosophy: 'Established setup', description: 'This career was created before the new club-offer system. Your original club has been preserved.', primaryColor: profile.primaryColor, secondaryColor: profile.secondaryColor, pros: ['Original career preserved', 'Existing squad retained'], cons: ['Legacy starting conditions', 'No offer reroll'], managerBudget: 48500000, managerTrust: 74, playerRating: 66, playerPotential: 86, playerWage: 6500, playerRole: 'Prospect', playerTraining: 42, managerResultBoost: 0, managerBudgetGrowth: 0, playerTrainingBonus: 0, playerTrustModifier: 0 }
+}
+
+function profileFromOffer(onboarding: OnboardingSave, offer: ClubOffer): CareerProfile {
+  return { mode: onboarding.mode, name: onboarding.name, clubName: offer.clubName, clubShort: offer.clubShort, league: offer.league, primaryColor: offer.primaryColor, secondaryColor: offer.secondaryColor, difficulty: onboarding.difficulty, playerPosition: onboarding.playerPosition }
+}
 
 const navItems: { id: View; label: string; icon: string }[] = [
   { id: 'hub', label: 'Central', icon: '⌂' },
@@ -261,56 +382,69 @@ function formatSavedTime(value: number | null) {
   return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-function createCareerPlayer(profile: CareerProfile): Player {
+function createCareerPlayer(profile: CareerProfile, offer?: ClubOffer | null): Player {
   const initials = profile.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NP'
-  return { id: 900, name: profile.name, position: profile.playerPosition, rating: 66, potential: 86, age: 18, form: 72, morale: 82, fitness: 96, value: 2500000, wage: 6500, contract: 4, role: 'Prospect', initials, color: profile.primaryColor }
+  return { id: 900, name: profile.name, position: profile.playerPosition, rating: offer?.playerRating ?? 66, potential: offer?.playerPotential ?? 86, age: 18, form: 72, morale: 82, fitness: 96, value: 2500000, wage: offer?.playerWage ?? 6500, contract: 4, role: offer?.playerRole ?? 'Prospect', initials, color: profile.primaryColor }
 }
 
 function App() {
   const savedCareer = readSavedCareer()
-  const [profile, setProfile] = useState<CareerProfile | null>(savedCareer?.profile ?? null)
-  const [activeView, setActiveView] = useState<View>(savedCareer?.activeView ?? 'hub')
+  const savedOnboarding = readSavedOnboarding()
+  const restoredOnboardingProfile = savedOnboarding?.acceptedOffer ? profileFromOffer(savedOnboarding, savedOnboarding.acceptedOffer) : null
+  const restoredProfile = savedCareer?.profile ?? restoredOnboardingProfile
+  const restoredOffer = savedCareer?.clubOffer ?? savedOnboarding?.acceptedOffer ?? null
+  const [onboarding, setOnboarding] = useState<OnboardingSave | null>(() => savedCareer || savedOnboarding?.acceptedOffer ? null : savedOnboarding)
+  const [profile, setProfile] = useState<CareerProfile | null>(restoredProfile)
+  const [clubOffer, setClubOffer] = useState<ClubOffer | null>(restoredOffer)
+  const [activeView, setActiveView] = useState<View>(savedCareer?.activeView ?? (restoredProfile?.mode === 'player' ? 'player' : 'hub'))
   const [players, setPlayers] = useState(() => {
     if (savedCareer?.players?.length) {
       if (savedCareer.profile.mode !== 'player') return savedCareer.players
-      const careerPlayer = createCareerPlayer(savedCareer.profile)
+      const careerPlayer = createCareerPlayer(savedCareer.profile, savedCareer.clubOffer)
       const hasCareerPlayer = savedCareer.players.some((player) => player.id === careerPlayer.id)
       return hasCareerPlayer
         ? savedCareer.players.map((player) => player.id === careerPlayer.id ? { ...player, name: careerPlayer.name, position: careerPlayer.position, initials: careerPlayer.initials, color: careerPlayer.color } : player)
         : [...savedCareer.players, careerPlayer]
     }
-    return savedCareer?.profile.mode === 'player' ? [...initialPlayers, createCareerPlayer(savedCareer.profile)] : initialPlayers
+    return restoredProfile?.mode === 'player' ? [...initialPlayers, createCareerPlayer(restoredProfile, restoredOffer)] : initialPlayers
   })
   const [shortlist, setShortlist] = useState<number[]>(savedCareer?.shortlist ?? [101, 104])
   const [scouted, setScouted] = useState<number[]>(savedCareer?.scouted ?? [])
   const [negotiations, setNegotiations] = useState<number[]>(savedCareer?.negotiations ?? [])
   const [fixtureResults, setFixtureResults] = useState<Record<number, string>>(savedCareer?.fixtureResults ?? {})
   const [dateIndex, setDateIndex] = useState(savedCareer?.dateIndex ?? 0)
+  const [seasonNumber, setSeasonNumber] = useState(savedCareer?.seasonNumber ?? 1)
+  const [weekNumber, setWeekNumber] = useState(savedCareer?.weekNumber ?? 1)
   const [budget, setBudget] = useState(savedCareer?.budget ?? 48500000)
   const [showNotifications, setShowNotifications] = useState(false)
   const [toast, setToast] = useState('')
   const [search, setSearch] = useState('')
-  const [selectedPlayerId, setSelectedPlayerId] = useState(savedCareer?.profile.mode === 'player' ? 900 : savedCareer?.selectedPlayerId ?? 9)
+  const [selectedPlayerId, setSelectedPlayerId] = useState(restoredProfile?.mode === 'player' ? 900 : savedCareer?.selectedPlayerId ?? 9)
   const [marketFilter, setMarketFilter] = useState<'All' | 'Shortlist' | 'Scouted'>('All')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalTitle, setModalTitle] = useState('')
   const [pendingInvestment, setPendingInvestment] = useState(false)
   const [simulationSpeed, setSimulationSpeed] = useState<0 | 1 | 2 | 20>(savedCareer?.simulationSpeed ?? 1)
   const [isClockRunning, setIsClockRunning] = useState(savedCareer?.isClockRunning ?? true)
-  const [simMinute, setSimMinute] = useState(savedCareer?.simMinute ?? 9 * 60 + 30)
-  const [simDay, setSimDay] = useState(savedCareer?.simDay ?? 11)
+  const [simMinute, setSimMinute] = useState(savedCareer?.simMinute ?? 8 * 60)
+  const [simDay, setSimDay] = useState(savedCareer?.simDay ?? 1)
   const [playerMatchPhase, setPlayerMatchPhase] = useState<MatchPhase | null>(savedCareer?.playerMatchPhase ?? null)
   const [playerMatch, setPlayerMatch] = useState<PlayerMatch | null>(savedCareer?.playerMatch ?? null)
   const [trainingProgress, setTrainingProgress] = useState(savedCareer?.trainingProgress ?? 42)
   const [rivalryScore, setRivalryScore] = useState(savedCareer?.rivalryScore ?? 48)
   const [managerTrust, setManagerTrust] = useState(savedCareer?.managerTrust ?? 74)
   const [simulationEvents, setSimulationEvents] = useState<SimulationEvent[]>(savedCareer?.simulationEvents ?? [])
+  const [introComplete, setIntroComplete] = useState(savedCareer?.introComplete ?? (restoredOnboardingProfile ? false : true))
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const [savedAt, setSavedAt] = useState<number | null>(savedCareer?.savedAt ?? null)
-  const processedDayRef = useRef(savedCareer?.simDay ?? 11)
-  const previousMinuteRef = useRef(savedCareer?.simMinute ?? 9 * 60 + 30)
+  const processedDayRef = useRef(savedCareer?.simDay ?? 1)
+  const previousMinuteRef = useRef(savedCareer?.simMinute ?? 8 * 60)
   const careerMode = profile?.mode ?? 'manager'
   const visibleNavItems = careerMode === 'player' ? playerNavItems : navItems
+
+  useEffect(() => {
+    backupLegacySaveIfNeeded()
+  }, [])
 
   const selectedPlayer = players.find((player) => player.id === selectedPlayerId) ?? players[0]
   const filteredProspects = useMemo(() => prospects.filter((prospect) => {
@@ -322,11 +456,12 @@ function App() {
   const saveCareer = useCallback(() => {
     if (!profile) return false
     const nextSavedAt = Date.now()
-    const career: SavedCareer = { profile, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents }
+    const career: SavedCareer = { profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents }
     const envelope: SavedCareerEnvelope = { version: CURRENT_SAVE_VERSION, savedAt: nextSavedAt, career }
     try {
       window.localStorage.setItem(SAVE_KEY, JSON.stringify(envelope))
       window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
+      window.localStorage.removeItem(ONBOARDING_KEY)
       setSavedAt(nextSavedAt)
       setSaveStatus('saved')
       return true
@@ -334,7 +469,7 @@ function App() {
       setSaveStatus('error')
       return false
     }
-  }, [profile, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents])
+  }, [profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents])
 
   useEffect(() => {
     if (!profile || !isClockRunning || simulationSpeed === 0 || playerMatchPhase) return
@@ -361,7 +496,7 @@ function App() {
       fitness: Math.min(100, player.fitness + (player.id % 3 === 0 ? 6 : 3)),
     })))
     setTrainingProgress((currentProgress) => {
-      const gain = profile.mode === 'player' ? 9 : 4
+      const gain = profile.mode === 'player' ? Math.max(1, (clubOffer?.playerTraining ?? 42) / 7 + (clubOffer?.playerTrainingBonus ?? 0)) : 4 + Math.round((clubOffer?.managerTrust ?? 74) / 30)
       const completed = currentProgress + gain >= 100
       if (completed) {
         setPlayers((currentPlayers) => currentPlayers.map((player) => player.id === 900 ? { ...player, rating: Math.min(player.potential, player.rating + 1), form: Math.min(99, player.form + 3) } : player))
@@ -371,25 +506,29 @@ function App() {
     })
     if (profile.mode === 'player') {
       setRivalryScore((current) => Math.max(0, Math.min(100, current + (simDay % 2 === 0 ? 2 : -1))))
-      setManagerTrust((current) => Math.max(0, Math.min(100, current + (simDay % 3 === 0 ? 1 : 0))))
+      setManagerTrust((current) => Math.max(0, Math.min(100, current + (simDay % 3 === 0 ? 1 : 0) + (clubOffer?.playerTrustModifier ?? 0))))
       setSimulationEvents((current) => [{ id: Date.now() + 1, label: 'Daily report', detail: `Training, recovery, and social standing processed for day ${simDay}.` }, ...current].slice(0, 8))
-      if (simDay % 5 === 0 && !playerMatchPhase && dateIndex < fixtures.length && !fixtureResults[dateIndex]) {
-        const fixture = fixtures[dateIndex]
+      if (simDay % 5 === 0 && !playerMatchPhase && dateIndex < seasonFixtures.length && !fixtureResults[dateIndex]) {
+        const fixture = seasonFixtures[dateIndex]
         setPlayerMatch({ opponent: fixture.opponent, opponentShort: fixture.short, minute: 0, rating: 6.0, goals: 0, assists: 0, passes: 0, choices: [], teamGoals: 0, opponentGoals: fixture.difficulty === 'High' ? 2 : 1, stamina: 100, lastEvent: 'The whistle is about to go.' })
         setPlayerMatchPhase('pre')
         setIsClockRunning(false)
       }
     } else if (simDay % 7 === 0 && !fixtureResults[dateIndex]) {
-      const fixture = fixtures[dateIndex % fixtures.length]
+      const fixture = seasonFixtures[dateIndex % seasonFixtures.length]
       const squadRating = players.reduce((total, item) => total + item.rating, 0) / players.length
-      const homeGoals = Math.max(0, Math.min(4, Math.round((squadRating - 71) / 8) + (fixture.home ? 1 : 0)))
+      const homeGoals = Math.max(0, Math.min(4, Math.round((squadRating - 71) / 8) + (fixture.home ? 1 : 0) + (clubOffer?.managerResultBoost ?? 0)))
       const awayGoals = fixture.difficulty === 'High' ? 2 : 1
       const result = `${fixture.home ? homeGoals : awayGoals}–${fixture.home ? awayGoals : homeGoals}`
-      setFixtureResults((current) => ({ ...current, [dateIndex]: result }))
-      setDateIndex((current) => Math.min(current + 1, fixtures.length - 1))
+    const seasonEnds = weekNumber >= 38
+    setFixtureResults((current) => seasonEnds ? {} : { ...current, [dateIndex]: result })
+    setBudget((current) => current + (clubOffer?.managerBudgetGrowth ?? 0))
+    setDateIndex((current) => seasonEnds ? 0 : Math.min(current + 1, seasonFixtures.length - 1))
+    setWeekNumber((current) => current >= 38 ? 1 : current + 1)
+      if (seasonEnds) setSeasonNumber((current) => current + 1)
       setSimulationEvents((current) => [{ id: Date.now() + 2, label: 'Simulated fixture', detail: `${fixture.opponent} finished ${result}.` }, ...current].slice(0, 8))
     }
-  }, [profile, simDay, dateIndex, fixtureResults, players, playerMatchPhase])
+  }, [profile, simDay, dateIndex, fixtureResults, players, playerMatchPhase, clubOffer, weekNumber])
 
   useEffect(() => {
     if (!profile) return
@@ -415,9 +554,12 @@ function App() {
 
   const clockLabel = `${String(Math.floor(simMinute / 60)).padStart(2, '0')}:${String(simMinute % 60).padStart(2, '0')}`
 
-  const startCareer = (nextProfile: CareerProfile) => {
-    const nextPlayers = nextProfile.mode === 'player' ? [...initialPlayers, createCareerPlayer(nextProfile)] : initialPlayers
+  const startCareer = (nextProfile: CareerProfile, nextOffer: ClubOffer) => {
+    const nextPlayers = nextProfile.mode === 'player' ? [...initialPlayers, createCareerPlayer(nextProfile, nextOffer)] : initialPlayers
+    setOnboarding(null)
     setProfile(nextProfile)
+    setClubOffer(nextOffer)
+    setIntroComplete(false)
     setActiveView(nextProfile.mode === 'player' ? 'player' : 'hub')
     setPlayers(nextPlayers)
     setShortlist([101, 104])
@@ -425,25 +567,31 @@ function App() {
     setNegotiations([])
     setFixtureResults({})
     setDateIndex(0)
-    setBudget(48500000)
+    setSeasonNumber(1)
+    setWeekNumber(1)
+    setBudget(nextProfile.mode === 'manager' ? nextOffer.managerBudget : 48500000)
     setSelectedPlayerId(nextProfile.mode === 'player' ? 900 : 9)
     setSimulationSpeed(1)
-    setIsClockRunning(true)
-    setSimMinute(9 * 60 + 30)
-    setSimDay(11)
-    previousMinuteRef.current = 9 * 60 + 30
-    processedDayRef.current = 11
+    setIsClockRunning(false)
+    setSimMinute(8 * 60)
+    setSimDay(1)
+    previousMinuteRef.current = 8 * 60
+    processedDayRef.current = 1
     setPlayerMatchPhase(null)
     setPlayerMatch(null)
-    setTrainingProgress(42)
+    setTrainingProgress(nextProfile.mode === 'player' ? nextOffer.playerTraining : 42)
     setRivalryScore(48)
-    setManagerTrust(74)
+    setManagerTrust(nextProfile.mode === 'manager' ? nextOffer.managerTrust : 74)
     setSimulationEvents([])
   }
 
   const resetCareer = () => {
     window.localStorage.removeItem(SAVE_KEY)
     window.localStorage.removeItem(PROFILE_KEY)
+    window.localStorage.removeItem(ONBOARDING_KEY)
+    setOnboarding(null)
+    setClubOffer(null)
+    setIntroComplete(true)
     setSavedAt(null)
     setSaveStatus('saved')
     setProfile(null)
@@ -454,20 +602,34 @@ function App() {
     setNegotiations([])
     setFixtureResults({})
     setDateIndex(0)
+    setSeasonNumber(1)
+    setWeekNumber(1)
     setBudget(48500000)
     setSelectedPlayerId(9)
     setSimulationSpeed(1)
-    setIsClockRunning(true)
-    setSimMinute(9 * 60 + 30)
-    setSimDay(11)
-    previousMinuteRef.current = 9 * 60 + 30
-    processedDayRef.current = 11
+    setIsClockRunning(false)
+    setSimMinute(8 * 60)
+    setSimDay(1)
+    previousMinuteRef.current = 8 * 60
+    processedDayRef.current = 1
     setPlayerMatchPhase(null)
     setPlayerMatch(null)
     setTrainingProgress(42)
     setRivalryScore(48)
     setManagerTrust(74)
     setSimulationEvents([])
+  }
+
+  const completeIntroduction = () => {
+    setIntroComplete(true)
+    setIsClockRunning(true)
+    showToast('Season 1 · Week 1 is underway')
+  }
+
+  const beginOnboarding = (nextOnboarding: OnboardingSave) => {
+    const persistedOnboarding = { ...nextOnboarding, offers: createClubOffers(nextOnboarding.leaguePreference) }
+    setOnboarding(persistedOnboarding)
+    try { window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify(persistedOnboarding)) } catch { /* save status appears after a club is accepted */ }
   }
 
   const showToast = (message: string) => {
@@ -515,8 +677,12 @@ function App() {
     setPlayers((current) => current.map((item) => item.id === 900 ? { ...item, rating: Math.min(item.potential, item.rating + (finalMatch.rating >= 7.5 ? 1 : 0)), form: Math.min(99, Math.max(55, item.form + (finalMatch.rating >= 7 ? 3 : -1))), fitness: Math.max(48, item.fitness - (100 - finalMatch.stamina) / 2), morale: Math.min(99, item.morale + (finalMatch.rating >= 7 ? 3 : 0)) } : item))
     setRivalryScore((current) => Math.max(0, Math.min(100, current + (finalMatch.rating >= 7 ? 8 : -3))))
     setManagerTrust((current) => Math.max(0, Math.min(100, current + (finalMatch.rating >= 7 ? 4 : -2) + (finalMatch.choices.includes('encourage') ? 2 : 0))))
-    setFixtureResults((current) => ({ ...current, [dateIndex]: result }))
-    setDateIndex((current) => Math.min(current + 1, fixtures.length - 1))
+    const seasonEnds = weekNumber >= 38
+    setFixtureResults((current) => seasonEnds ? {} : { ...current, [dateIndex]: result })
+    if (profile?.mode === 'manager') setBudget((current) => current + (clubOffer?.managerBudgetGrowth ?? 0))
+    setDateIndex((current) => seasonEnds ? 0 : Math.min(current + 1, seasonFixtures.length - 1))
+    setWeekNumber((current) => current >= 38 ? 1 : current + 1)
+    if (seasonEnds) setSeasonNumber((current) => current + 1)
     setSimulationEvents((current) => [{ id: Date.now(), label: 'Matchday report', detail: `${profile?.name} rated ${finalMatch.rating.toFixed(1)} in a ${result} result against ${finalMatch.opponent}.` }, ...current].slice(0, 8))
     setPlayerMatch(null)
     setPlayerMatchPhase(null)
@@ -525,18 +691,23 @@ function App() {
   }
 
   const continueWeek = () => {
-    const currentFixture = fixtures[dateIndex]
+    const currentFixture = seasonFixtures[dateIndex]
     if (!currentFixture || fixtureResults[dateIndex]) {
       showToast('All scheduled fixtures have been resolved')
       return
     }
     const squadRating = players.reduce((total, player) => total + player.rating, 0) / players.length
     const formBoost = players.reduce((total, player) => total + player.form, 0) / players.length > 82 ? 1 : 0
-    const homeGoals = Math.max(0, Math.min(4, Math.round((squadRating - 71) / 8) + (currentFixture.home ? 1 : 0) + formBoost))
+    const boardBoost = Math.floor((clubOffer?.managerTrust ?? 74) / 60)
+    const homeGoals = Math.max(0, Math.min(4, Math.round((squadRating - 71) / 8) + (currentFixture.home ? 1 : 0) + formBoost + boardBoost + (clubOffer?.managerResultBoost ?? 0)))
     const awayGoals = currentFixture.difficulty === 'High' ? 2 : currentFixture.difficulty === 'Medium' ? 1 : 0
     const result = `${currentFixture.home ? homeGoals : awayGoals}–${currentFixture.home ? awayGoals : homeGoals}`
-    setFixtureResults((current) => ({ ...current, [dateIndex]: result }))
-    setDateIndex((current) => Math.min(current + 1, fixtures.length - 1))
+    const seasonEnds = weekNumber >= 38
+    setFixtureResults((current) => seasonEnds ? {} : { ...current, [dateIndex]: result })
+    if (profile?.mode === 'manager') setBudget((current) => current + (clubOffer?.managerBudgetGrowth ?? 0))
+    setDateIndex((current) => seasonEnds ? 0 : Math.min(current + 1, seasonFixtures.length - 1))
+    setWeekNumber((current) => current >= 38 ? 1 : current + 1)
+    if (seasonEnds) setSeasonNumber((current) => current + 1)
     setPlayers((current) => current.map((player) => ({
       ...player,
       fitness: Math.max(62, player.fitness - (player.id % 3 === 0 ? 7 : 3)),
@@ -555,7 +726,13 @@ function App() {
     showToast('Scout report filed · ready for review')
   }
 
-  if (!profile) return <SetupView onComplete={startCareer} />
+  if (!profile) return onboarding ? <ClubOffersView onboarding={onboarding} onAccept={(offer) => {
+    const nextProfile: CareerProfile = { mode: onboarding.mode, name: onboarding.name, clubName: offer.clubName, clubShort: offer.clubShort, league: offer.league, primaryColor: offer.primaryColor, secondaryColor: offer.secondaryColor, difficulty: onboarding.difficulty, playerPosition: onboarding.playerPosition }
+    try { window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ ...onboarding, acceptedOffer: offer })) } catch { /* career save follows immediately */ }
+    startCareer(nextProfile, offer)
+  }} /> : <SetupView onComplete={beginOnboarding} />
+
+  if (!introComplete) return <IntroductionView profile={profile} offer={clubOffer} onContinue={completeIntroduction} />
 
   const openModal = (title: string) => {
     setPendingInvestment(false)
@@ -587,10 +764,10 @@ function App() {
         </div>
 
         <div className="season-block">
-          <span className="eyebrow">SEASON 04</span>
+          <span className="eyebrow">SEASON {String(seasonNumber).padStart(2, '0')}</span>
           <strong>THE ASCENT</strong>
           <span className="season-progress"><i /></span>
-          <small>Week {dateIndex + 2} of 38 <b>·</b> 12%</small>
+          <small>Week {weekNumber} of 38 <b>·</b> {Math.round((weekNumber / 38) * 100)}%</small>
         </div>
 
         <nav className="main-nav" aria-label="Main navigation">
@@ -651,23 +828,29 @@ function App() {
   )
 }
 
-function SetupView({ onComplete }: { onComplete: (profile: CareerProfile) => void }) {
+function ClubOffersView({ onboarding, onAccept }: { onboarding: OnboardingSave; onAccept: (offer: ClubOffer) => void }) {
+  return <div className="setup-shell"><div className="setup-orbit setup-orbit-one" /><div className="setup-orbit setup-orbit-two" /><header className="setup-brand"><div className="brand-mark">N<span>+</span></div><div><b>NORTHSTAR</b><small>CAREER MODE</small></div></header><main className="setup-card offers-card"><div className="setup-intro"><span className="live-pill"><i /> CLUB OFFERS</span><span className="section-kicker">SEASON 01 · YOUR FIRST APPOINTMENT</span><h1>Three clubs.<br /><em>One decision.</em></h1><p>{onboarding.name}, these clubs have reviewed your profile. Each offer opens a different route through the season.</p></div><div className="offer-grid">{onboarding.offers.map((offer, index) => <article className="club-offer" key={offer.id} style={{ '--offer-primary': offer.primaryColor, '--offer-secondary': offer.secondaryColor } as CSSProperties}><div className="offer-topline"><span className="offer-index">0{index + 1}</span><span className="offer-league">{offer.league}</span></div><div className="offer-crest">{offer.clubShort}</div><span className="offer-identity">{offer.identity}</span><h2>{offer.clubName}</h2><p>{offer.description}</p><div className="offer-meta"><span><b>STYLE</b>{offer.philosophy}</span><span><b>{onboarding.mode === 'manager' ? 'BUDGET' : 'PATHWAY'}</b>{onboarding.mode === 'manager' ? formatMoney(offer.managerBudget) : offer.playerRole}</span></div><div className="offer-tradeoffs"><div><b>ADVANTAGES</b>{offer.pros.map((item) => <span key={item}>+ {item}</span>)}</div><div><b>TRADE-OFFS</b>{offer.cons.map((item) => <span key={item}>− {item}</span>)}</div></div><button className="primary-button full-button" onClick={() => onAccept(offer)}>{onboarding.acceptedOffer?.id === offer.id ? 'Continue with this club' : `Accept ${offer.clubName}`} <Icon>→</Icon></button></article>)}</div><div className="setup-footer"><span>Offers are locked to this career and saved locally.</span><span>{onboarding.mode === 'manager' ? 'Manager appointment' : 'Player contract'} · Season 1</span></div></main></div>
+}
+
+function IntroductionView({ profile, offer, onContinue }: { profile: CareerProfile; offer: ClubOffer | null; onContinue: () => void }) {
+  const acceptedOffer = offer ?? createLegacyClubOffer(profile)
+  const isManager = profile.mode === 'manager'
+  return <div className="setup-shell"><div className="setup-orbit setup-orbit-one" /><div className="setup-orbit setup-orbit-two" /><header className="setup-brand"><div className="brand-mark">N<span>+</span></div><div><b>NORTHSTAR</b><small>CAREER MODE</small></div></header><main className="setup-card introduction-card"><div className="intro-scoreboard"><span>SEASON 01</span><b>WEEK 01</b><span>{acceptedOffer.league.toUpperCase()}</span></div><div className="setup-intro"><span className="live-pill"><i /> APPOINTMENT CONFIRMED</span><span className="section-kicker">THE OPENING BRIEFING</span><h1>{isManager ? 'Welcome to the<br />touchline.' : 'Welcome to the<br />first team.'}</h1><p>{isManager ? `The board at ${acceptedOffer.clubName} wants a clear identity, a steady hand, and results that match the ambition.` : `${acceptedOffer.clubName} sees a place for ${profile.name}. Your first sessions will decide how quickly that place becomes yours.`}</p></div><div className="introduction-grid"><div className="introduction-club" style={{ background: `linear-gradient(135deg, ${acceptedOffer.primaryColor}, ${acceptedOffer.secondaryColor})` }}><span>{acceptedOffer.clubShort}</span><div><b>{acceptedOffer.clubName}</b><small>{acceptedOffer.identity} · {acceptedOffer.philosophy}</small></div></div><div className="introduction-brief"><span className="section-kicker">{isManager ? 'BOARD MANDATE' : 'FIRST-TEAM BRIEF'}</span><b>{isManager ? 'Make the club competitive without losing its identity.' : `Earn a role as a ${acceptedOffer.playerRole.toLowerCase()} and make every training session count.`}</b><div className="tag-row"><span>{acceptedOffer.pros[0]}</span><span>{acceptedOffer.cons[0]}</span></div></div></div><button className="primary-button setup-submit" onClick={onContinue}>Enter {acceptedOffer.clubName} <Icon>→</Icon></button><div className="setup-footer"><span>Season 1 · Week 1 · Day 1</span><span>Career state saves automatically</span></div></main></div>
+}
+
+function SetupView({ onComplete }: { onComplete: (onboarding: OnboardingSave) => void }) {
   const [mode, setMode] = useState<CareerMode>('manager')
   const [name, setName] = useState('Jules Park')
-  const [clubName, setClubName] = useState('Northstar FC')
-  const [clubShort, setClubShort] = useState('NFC')
   const [league, setLeague] = useState('Premier Division')
-  const [primaryColor, setPrimaryColor] = useState('#b5ef76')
-  const [secondaryColor, setSecondaryColor] = useState('#8c7bff')
   const [difficulty, setDifficulty] = useState('Authentic')
   const [playerPosition, setPlayerPosition] = useState<Position>('AM')
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    onComplete({ mode, name: name.trim() || 'Jules Park', clubName: clubName.trim() || 'Northstar FC', clubShort: clubShort.trim().slice(0, 4).toUpperCase() || 'NFC', league, primaryColor, secondaryColor, difficulty, playerPosition })
+    onComplete({ mode, name: name.trim() || 'Jules Park', leaguePreference: league, difficulty, playerPosition, offers: [] })
   }
 
-  return <div className="setup-shell"><div className="setup-orbit setup-orbit-one" /><div className="setup-orbit setup-orbit-two" /><header className="setup-brand"><div className="brand-mark">N<span>+</span></div><div><b>NORTHSTAR</b><small>CAREER MODE</small></div></header><main className="setup-card"><div className="setup-intro"><span className="live-pill"><i /> NEW CAREER</span><span className="section-kicker">SEASON 01 · THE FIRST DECISION</span><h1>Take the<br /><em>touchline.</em></h1><p>Set your role, name your club, and make the first call of the season.</p></div><form onSubmit={submit}><div className="mode-toggle"><button type="button" className={mode === 'manager' ? 'active' : ''} onClick={() => setMode('manager')}><span className="setup-option-icon">◈</span><span><b>Manager Career</b><small>Run the club. Shape the squad.</small></span><i>✓</i></button><button type="button" className={mode === 'player' ? 'active' : ''} onClick={() => setMode('player')}><span className="setup-option-icon">♙</span><span><b>Player Career</b><small>Become the name on the shirt.</small></span><i>✓</i></button></div><div className="setup-grid"><label className="setup-field"><span>{mode === 'manager' ? 'MANAGER NAME' : 'PLAYER NAME'}</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder={mode === 'manager' ? 'Your manager name' : 'Your player name'} maxLength={28} /></label><label className="setup-field"><span>CLUB NAME</span><input value={clubName} onChange={(event) => setClubName(event.target.value)} placeholder="Create your club" maxLength={24} /></label><label className="setup-field"><span>CLUB SHORTCODE</span><input value={clubShort} onChange={(event) => setClubShort(event.target.value.toUpperCase())} placeholder="NFC" maxLength={4} /></label><label className="setup-field"><span>LEAGUE</span><select value={league} onChange={(event) => setLeague(event.target.value)}><option>Premier Division</option><option>Continental League</option><option>Coastal Championship</option><option>Alpine League</option></select></label>{mode === 'player' && <label className="setup-field"><span>STARTING POSITION</span><select value={playerPosition} onChange={(event) => setPlayerPosition(event.target.value as Position)}>{(['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST'] as Position[]).map((position) => <option key={position}>{position}</option>)}</select></label>}<label className="setup-field"><span>CAREER DIFFICULTY</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option>Authentic</option><option>Competitive</option><option>Story driven</option></select></label></div><div className="club-customizer"><div><span className="setup-field-label">CLUB IDENTITY</span><small>Choose the colours your supporters will wear.</small></div><div className="color-picks"><label><input type="color" value={primaryColor} onChange={(event) => setPrimaryColor(event.target.value)} /><span style={{ background: primaryColor }} /></label><label><input type="color" value={secondaryColor} onChange={(event) => setSecondaryColor(event.target.value)} /><span style={{ background: secondaryColor }} /></label><div className="kit-preview" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})` }}><b>{clubShort.slice(0, 4) || 'NFC'}</b></div></div></div><button className="primary-button setup-submit" type="submit">Begin {mode === 'manager' ? 'manager' : 'player'} career <Icon>→</Icon></button></form><div className="setup-footer"><span>All career data is saved locally in this browser.</span><span>Fictional football universe · Northstar 04</span></div></main></div>
+  return <div className="setup-shell"><div className="setup-orbit setup-orbit-one" /><div className="setup-orbit setup-orbit-two" /><header className="setup-brand"><div className="brand-mark">N<span>+</span></div><div><b>NORTHSTAR</b><small>CAREER MODE</small></div></header><main className="setup-card"><div className="setup-intro"><span className="live-pill"><i /> NEW CAREER</span><span className="section-kicker">SEASON 01 · THE FIRST DECISION</span><h1>Take the<br /><em>touchline.</em></h1><p>Set your role, name your club, and make the first call of the season.</p></div><form onSubmit={submit}><div className="mode-toggle"><button type="button" className={mode === 'manager' ? 'active' : ''} onClick={() => setMode('manager')}><span className="setup-option-icon">◈</span><span><b>Manager Career</b><small>Run the club. Shape the squad.</small></span><i>✓</i></button><button type="button" className={mode === 'player' ? 'active' : ''} onClick={() => setMode('player')}><span className="setup-option-icon">♙</span><span><b>Player Career</b><small>Become the name on the shirt.</small></span><i>✓</i></button></div><div className="setup-grid"><label className="setup-field"><span>{mode === 'manager' ? 'MANAGER NAME' : 'PLAYER NAME'}</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder={mode === 'manager' ? 'Your manager name' : 'Your player name'} maxLength={28} /></label><div className="setup-field setup-field-note"><span>CLUB APPOINTMENT</span><small>Three unique offers will be generated after setup. Each club has its own pressure, resources, and pathway.</small></div><label className="setup-field"><span>LEAGUE</span><select value={league} onChange={(event) => setLeague(event.target.value)}><option>Premier Division</option><option>Continental League</option><option>Coastal Championship</option><option>Alpine League</option></select></label>{mode === 'player' && <label className="setup-field"><span>STARTING POSITION</span><select value={playerPosition} onChange={(event) => setPlayerPosition(event.target.value as Position)}>{(['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST'] as Position[]).map((position) => <option key={position}>{position}</option>)}</select></label>}<label className="setup-field"><span>CAREER DIFFICULTY</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option>Authentic</option><option>Competitive</option><option>Story driven</option></select></label></div><div className="club-customizer"><div><span className="setup-field-label">FIRST APPOINTMENT</span><small>Review the board brief before you accept a club.</small></div><div className="setup-option-icon">✦</div></div><button className="primary-button setup-submit" type="submit">View club offers <Icon>→</Icon></button></form><div className="setup-footer"><span>All career data is saved locally in this browser.</span><span>Fictional football universe · Season 1 kickoff</span></div></main></div>
 }
 
 function PlayerHubView({ profile, player, clockLabel, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents, onAdvanceMatch, onMatchAction, openModal, setActiveView }: { profile: CareerProfile; player: Player; clockLabel: string; simDay: number; playerMatchPhase: MatchPhase | null; playerMatch: PlayerMatch | null; trainingProgress: number; rivalryScore: number; managerTrust: number; simulationEvents: SimulationEvent[]; onAdvanceMatch: () => void; onMatchAction: (action: 'attack' | 'compose' | 'conserve' | 'press' | 'hold' | 'risk' | 'encourage' | 'humble') => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
@@ -685,10 +868,10 @@ function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; 
 }
 
 function HubView({ profile, budget, dateIndex, fixtureResults, continueWeek, openModal, setActiveView }: { profile: CareerProfile; budget: number; dateIndex: number; fixtureResults: Record<number, string>; continueWeek: () => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
-  const fixture = fixtures[dateIndex]
+  const fixture = seasonFixtures[dateIndex]
   const currentResult = fixtureResults[dateIndex]
   return <>
-    <PageHeader eyebrow={`MONDAY · AUGUST ${String(10 + dateIndex).padStart(2, '0')}, 2026 · ${profile.league.toUpperCase()}`} title="Matchweek starts now." description={`A new week, a full squad, and one clear objective: put ${profile.clubName} in position to win.`} action={<button className="primary-button continue-button" onClick={continueWeek}><span className="pulse-ring" />Continue week <Icon>→</Icon></button>} />
+    <PageHeader eyebrow={`MATCHWEEK · ${fixture.date} · ${profile.league.toUpperCase()}`} title="Matchweek starts now." description={`A new week, a full squad, and one clear objective: put ${profile.clubName} in position to win.`} action={<button className="primary-button continue-button" onClick={continueWeek}><span className="pulse-ring" />Continue week <Icon>→</Icon></button>} />
     <div className="hero-grid">
       <section className="club-hero panel">
         <div className="hero-glow" />
