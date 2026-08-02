@@ -602,79 +602,69 @@ function App() {
 
   return (
     <div className="app-shell">
-            <header className="app-topnav">
-        <div className="app-topnav-logo">
-          <div className="hex-badge">NS</div>
-          <span>NORTHSTAR FC</span>
-        </div>
-        <span className="topnav-mode">{careerMode === 'player' ? 'PLAYER' : 'MANAGER'} CAREER</span>
-        <div className="topnav-divider" />
-
-        <nav className="topnav-nav" aria-label="Main navigation">
+      {/* Vertical icon sidebar */}
+      <aside className="app-sidebar">
+        <div className="app-sidebar-top">
           {visibleNavItems.map((item) => (
             <button
               key={item.id}
-              className={activeView === item.id ? 'active' : ''}
+              className={`app-sidebar-icon${activeView === item.id ? ' active' : ''}`}
               onClick={() => setActiveView(item.id)}
               title={item.label}
             >
-              <Icon>{item.icon}</Icon>{item.label}
+              <Icon>{item.icon}</Icon>
+              <span className="sb-label">{item.label}</span>
               {item.id === 'market' && <em>2</em>}
             </button>
           ))}
-        </nav>
-
-        <div className="topnav-right">
-          <button className="save-btn" onClick={() => showToast(saveCareer() ? 'Career saved' : 'Save failed')}>
-            <Icon>⌁</Icon> Save
+        </div>
+        <div className="sidebar-clock">
+          <span className={`time ${isClockRunning ? '' : 'paused'}`}>{isClockRunning ? clockLabel : '||'}</span>
+          <div className="speed-dots">
+            <button className={simulationSpeed === 0 ? 'active' : ''} onClick={() => { setSimulationSpeed(0); setIsClockRunning(false) }} title="Pause" />
+            <button className={simulationSpeed === 1 && isClockRunning ? 'active' : ''} onClick={() => { setSimulationSpeed(1); setIsClockRunning(true) }} title="1x" />
+            <button className={simulationSpeed === 2 ? 'active' : ''} onClick={() => { setSimulationSpeed(2); setIsClockRunning(true) }} title="2x" />
+            <button className={simulationSpeed === 20 ? 'active' : ''} onClick={() => { setSimulationSpeed(20); setIsClockRunning(true) }} title="20x" />
+          </div>
+        </div>
+        <div className="app-sidebar-bottom">
+          <button className="app-sidebar-icon" onClick={() => showToast(saveCareer() ? 'Saved' : 'Save failed')} title="Save">
+            <Icon>⌁</Icon><span className="sb-label">Save</span>
           </button>
+        </div>
+      </aside>
 
+      <main className="main-content">
+        {/* Slim top bar */}
+        <div className="app-topbar">
+          <span className="save-indicator"><i />{careerMode === 'player' ? 'PLAYER' : 'MANAGER'} · {profile.clubShort}</span>
           {careerMode === 'player' && playerMatchPhase && (
-            <button className="topnav-match-alert" onClick={() => setActiveView('player')}>
-              <span className="dot" /> MATCHDAY LIVE
+            <button className="match-alert" onClick={() => setActiveView('player')}>
+              <span className="dot" /> MATCHDAY
             </button>
           )}
-
-          <div className="topnav-clock">
-            <span className={`time ${isClockRunning ? '' : 'paused'}`}>
-              <i />{isClockRunning ? clockLabel : 'PAUSED'}
-            </span>
-            <div className="speed-btns">
-              <button className={simulationSpeed === 0 ? 'active' : ''} onClick={() => { setSimulationSpeed(0); setIsClockRunning(false) }}>||</button>
-              <button className={simulationSpeed === 1 && isClockRunning ? 'active' : ''} onClick={() => { setSimulationSpeed(1); setIsClockRunning(true) }}>1x</button>
-              <button className={simulationSpeed === 2 ? 'active' : ''} onClick={() => { setSimulationSpeed(2); setIsClockRunning(true) }}>2x</button>
-              <button className={simulationSpeed === 20 ? 'active' : ''} onClick={() => { setSimulationSpeed(20); setIsClockRunning(true) }}>20x</button>
-            </div>
-          </div>
-
-          <button className="topnav-user" onClick={() => setShowNotifications(!showNotifications)} style={{ position: 'relative' }} aria-label="Notifications">
-            <div className="topnav-user-avatar" style={{ background: profile.primaryColor }}>
+          <div style={{ flex: 1 }} />
+          <button className="user-btn" onClick={() => setShowNotifications(!showNotifications)} style={{ position: 'relative' }}>
+            <div className="user-avatar" style={{ background: profile.primaryColor }}>
               {profile.name.split(' ').map((p) => p[0]).join('').slice(0, 2) || 'JP'}
             </div>
-            <div>
-              <b>{profile.name}</b>
-              <small>{careerMode === 'player' ? 'Player' : 'Manager'}</small>
-            </div>
+            <b>{profile.name}</b>
           </button>
-
           {showNotifications && (
             <div className="notif-popover">
-              <h4>Inbox · 3 unread</h4>
+              <h4>Inbox</h4>
               <div className="notif-item">
                 <div className="notif-dot amber" />
-                <div><b>Board review due</b><p>Share a progress update before next fixture.</p></div>
+                <div><b>Board review due</b><p>Progress update needed.</p></div>
               </div>
               <div className="notif-item">
                 <div className="notif-dot cyan" />
-                <div><b>Scout report ready</b><p>Naila Bouchard matches your midfield brief.</p></div>
+                <div><b>Scout report ready</b><p>New prospect matches your brief.</p></div>
               </div>
-              <button onClick={() => setShowNotifications(false)}>Mark all as read</button>
+              <button onClick={() => setShowNotifications(false)}>Dismiss</button>
             </div>
           )}
         </div>
-      </header>
-
-      <main className="main-content">
         <div className="page-wrap">
           {activeView === 'hub' && (careerMode === 'player' ? <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} /> : <HubView profile={profile} budget={budget} dateIndex={dateIndex} fixtureResults={fixtureResults} players={players} managerMatch={managerMatch} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} onFinishMatch={() => finishManagerMatch()} onSubPlayer={(outId, inId) => { setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p)); setManagerMatch((m) => m ? { ...m, events: [...m.events, `SUB: ${players.find((p) => p.id === inId)?.name ?? ''} replaces ${players.find((p) => p.id === outId)?.name ?? ''}`].slice(-8), playerPerformances: [...m.playerPerformances.filter((pp) => pp.id !== outId), { id: inId, rating: players.find((p) => p.id === inId)?.rating ?? 70 }] } : m); showToast('Substitution made') }} continueWeek={continueWeek} openModal={openModal} setActiveView={setActiveView} />)}
           {activeView === 'player' && <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />}

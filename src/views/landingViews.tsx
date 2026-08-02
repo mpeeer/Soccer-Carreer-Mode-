@@ -7,12 +7,7 @@ export function LandingPage({ onEnter, onDocs, hasSavedCareer, onContinue }: { o
       <div className="landing-orb" />
     </div>
     <nav className="landing-nav">
-      <div className="landing-logo">
-        <div className="landing-logo-icon">NS</div>
-        <div className="landing-logo-text">NORTHSTAR<span> FC</span></div>
-      </div>
       <div className="landing-nav-links">
-        <button onClick={onDocs}>Features</button>
         <button onClick={onDocs}>About</button>
         {hasSavedCareer ? (
           <button className="primary-pill" onClick={onContinue}>CONTINUE CAREER</button>
@@ -31,30 +26,31 @@ export function LandingPage({ onEnter, onDocs, hasSavedCareer, onContinue }: { o
         ) : (
           <button className="btn-primary" onClick={onEnter}>NEW CAREER <Icon>→</Icon></button>
         )}
-        <button className="btn-secondary" onClick={onDocs}>VIEW FEATURES</button>
+        <button className="btn-secondary" onClick={onDocs}>LEARN MORE</button>
       </div>
     </main>
-    <div className="landing-features">
-      <div className="landing-feature">
-        <div className="feat-icon">⚑</div>
-        <h3>Manager Mode</h3>
-        <p>Full tactical control, transfer negotiations, squad management, and live match simulation.</p>
-      </div>
-      <div className="landing-feature">
-        <div className="feat-icon">★</div>
-        <h3>Player Career</h3>
-        <p>Train, develop, negotiate contracts, and perform on the pitch. Your choices shape your path.</p>
-      </div>
-      <div className="landing-feature">
-        <div className="feat-icon">↔</div>
-        <h3>Transfer Hub</h3>
-        <p>Scout talent, negotiate deals, and manage your shortlist with real-time feedback from agents.</p>
-      </div>
-    </div>
   </div>
 }
 
 export function DocsPage({ onBack }: { onBack: () => void }) {
-  return <div className="docs-shell"><nav className="docs-nav"><button onClick={onBack}><Icon>←</Icon> Back</button></nav><div className="docs-content">    <h1>Northstar FC Career Mode</h1><p>A full-featured football career simulation built for the web. Manage your club or control a single player through a living, breathing football world.</p><h2>Features</h2><ul><li><b>Manager Career:</b> Tactics editor, squad rotation, contract management, live match simulation with tactical influence.</li><li><b>Player Career:</b> Training progress, form tracking, transfer approaches, matchday decision-making.</li><li><b>Transfer Hub:</b> Market scouting, agent negotiations, shortlist management, detailed player profiles.</li><li><b>Dynamic Ratings:</b> Player OVR fluctuates based on performance, form, and recent results.</li><li><b>Calendar & Fixtures:</b> Full 38-week season with fixture tracking and result history.</li><li><b>Team Management:</b> Formation editor, substitution system, tactics assignments.</li></ul><h2>Getting Started</h2><p>Choose <b>Manager</b> or <b>Player</b> career mode. Select a club from three offers tailored to your preferences. The game auto-saves after every action.</p><h2>Tech Stack</h2><p>Built with React, TypeScript, and Vite. All data stored locally in your browser. No servers, no accounts — just football.</p></div></div>
+  return <div className="docs-shell"><nav className="docs-nav"><button onClick={onBack}><Icon>←</Icon> Back</button></nav><div className="docs-content">
+    <h1>About Northstar FC</h1>
+    <p>Northstar FC is a deep football career simulation that puts you at the centre of the beautiful game. Choose your path and live every moment — from the training ground to the floodlit stadium.</p>
+
+    <h2>The Experience</h2>
+    <p>Every decision carries weight. Your tactical adjustments shift the balance of a match. Your transfer calls shape the squad for seasons to come. Your training sessions determine which players break through and which ones fade. There are no shortcuts — only the work, the results, and the legacy you leave behind.</p>
+
+    <h2>Manager Career</h2>
+    <p>Take the touchline. You control the formation, mentality, pressing intensity, defensive line, and attacking width. Make substitutions mid-match based on fatigue and form. Manage the budget, negotiate contracts, and build a squad that reflects your philosophy. Every fixture is a test — the league table doesn't lie.</p>
+
+    <h2>Player Career</h2>
+    <p>Start as a prospect and earn your place. Train daily to develop pace, shooting, passing, dribbling, and physical attributes. Perform on matchday to build trust with the manager and rivalry with opponents. When bigger clubs come calling, decide whether to stay loyal or chase glory elsewhere.</p>
+
+    <h2>Transfer Market</h2>
+    <p>Scout talent from across the leagues. Build a shortlist, file reports, and enter negotiations. Every prospect has strengths, weaknesses, and a price. Agents work the phones. Counter-offers shift the deal. The window waits for no one.</p>
+
+    <h2>Built for the Web</h2>
+    <p>Northstar FC runs entirely in your browser. No accounts, no servers, no subscriptions. Your career is saved locally and persists across sessions. Built with React, TypeScript, and Vite — fast, responsive, and ready whenever you are.</p>
+  </div></div>
 }
 
