@@ -26,65 +26,49 @@ const formatMoney = (v: number) => {
   return `$${v}`
 }
 
-export function TransferHub({ prospects, shortlist, transferList, loanList, blockedList, budget, transferComments, transferReports, onToggleShortlist, onMoveTab, onSendComment, onShowToast }: TransferHubProps) {
+export function TransferHub({ prospects, shortlist, transferList, loanList, blockedList, budget, transferComments, onToggleShortlist, onMoveTab, onSendComment, onShowToast }: TransferHubProps) {
   const [activeTab, setActiveTab] = useState<TransferTab>('shortlist')
   const [selectedId, setSelectedId] = useState<number>(110)
   const [draftComment, setDraftComment] = useState('')
 
-  const tabLists: Record<TransferTab, number[]> = {
-    shortlist,
-    transferList,
-    loanList,
-    blockedList,
-  }
-  const filteredProspects = useMemo(() => {
-    const ids = tabLists[activeTab]
-    return prospects.filter((p) => ids.includes(p.id))
-  }, [activeTab, prospects, tabLists])
-
+  const tabLists: Record<TransferTab, number[]> = { shortlist, transferList, loanList, blockedList }
+  const filteredProspects = useMemo(() => prospects.filter((p) => tabLists[activeTab].includes(p.id)), [activeTab, prospects, shortlist])
   const selected = prospects.find((p) => p.id === selectedId) ?? filteredProspects[0] ?? prospects[0]
 
-  // Synthetic transfer fee/make-offer state
-  const syntheticValue = useMemo(() => {
+  const numericValue = useMemo(() => {
     const match = selected.value.match(/\d[\d.]*/)
     if (!match) return 65000000
     return Number(match[0].replace('.', '')) * 1_000_000
   }, [selected])
-  const transferFee = Math.round(syntheticValue)
+  const transferFee = Math.round(numericValue)
   const paidNow = Math.round(transferFee * 0.7)
   const futurePayments = transferFee - paidNow
-  const addOns = 0
   const budgetRemaining = budget - transferFee
 
   return (
     <div className="ea-fc-theme ea-transfer-hub">
-      {/* Top tab bar */}
       <header className="ea-top-tabs">
-        <div className="ea-brand-mark" aria-label="My Career">
-          <span>MC</span>
-        </div>
+        <div className="ea-brand-mark"><span>NS</span></div>
         <nav className="ea-tab-nav">
-          <button className="ea-tab ea-tab-primary">Transfers</button>
-          <button className="ea-tab">Lists</button>
+          <button className="ea-tab ea-tab-primary">Lists</button>
           <div className="ea-tab-divider" />
-          <button className={`ea-tab ${activeTab === 'shortlist' ? 'ea-tab-active' : ''}`} onClick={() => setActiveTab('shortlist')}>Shortlist</button>
-          <button className={`ea-tab ${activeTab === 'transferList' ? 'ea-tab-active' : ''}`} onClick={() => setActiveTab('transferList')}>Transfer List</button>
-          <button className={`ea-tab ${activeTab === 'loanList' ? 'ea-tab-active' : ''}`} onClick={() => setActiveTab('loanList')}>Loan List</button>
-          <button className={`ea-tab ${activeTab === 'blockedList' ? 'ea-tab-active' : ''}`} onClick={() => setActiveTab('blockedList')}>Blocked</button>
+          <button className={`ea-tab${activeTab === 'shortlist' ? ' ea-tab-active' : ''}`} onClick={() => setActiveTab('shortlist')}>Shortlist ({shortlist.length})</button>
+          <button className="ea-tab" onClick={() => setActiveTab('transferList')}>Transfer list</button>
+          <button className="ea-tab" onClick={() => setActiveTab('loanList')}>Loan list</button>
+          <button className="ea-tab" onClick={() => setActiveTab('blockedList')}>Blocked</button>
         </nav>
       </header>
 
-      {/* Split: left list + right detail */}
       <div className="ea-hub-body">
-        {/* Left: player table */}
+        {/* Left: table */}
         <section className="ea-table-panel">
           <div className="ea-table-head">
             <span>Pos</span>
-            <span>World Team</span>
+            <span>Club</span>
             <span>Name</span>
             <span>OVR</span>
             <span>Age</span>
-            <span>Value (xTV)</span>
+            <span>Value</span>
             <span>Status</span>
           </div>
           <div className="ea-table-rows">
@@ -99,23 +83,21 @@ export function TransferHub({ prospects, shortlist, transferList, loanList, bloc
               const tint = positionTints[p.position] ?? 'rgba(148,163,184,.1)'
               const accent = positionColors[p.position] ?? '#94a3b8'
               return (
-                <button key={p.id} className={`ea-row ${active ? 'ea-row-selected' : ''}`} onClick={() => setSelectedId(p.id)} style={{ '--row-accent': accent, '--row-tint': tint } as CSSProperties}>
-                  <span className="ea-cell-pos">
-                    <b>{p.position}</b>
-                  </span>
-                  <span className="ea-cell-team">
-                    <span className="ea-flag" title={p.club}>{p.flag}</span>
-                  </span>
-                  <span className="ea-cell-name">
-                    <b>{p.name}</b>
-                  </span>
+                <button
+                  key={p.id}
+                  className={`ea-row${active ? ' ea-row-selected' : ''}`}
+                  onClick={() => setSelectedId(p.id)}
+                  style={{ '--row-accent': accent, '--row-tint': tint } as CSSProperties}
+                >
+                  <span className="ea-cell-pos"><b>{p.position}</b></span>
+                  <span className="ea-cell-team"><span className="ea-flag">{p.flag}</span></span>
+                  <span className="ea-cell-name"><b>{p.name}</b></span>
                   <span className="ea-cell-ovr"><strong>{p.rating}</strong></span>
                   <span className="ea-cell-age">{p.age}</span>
                   <span className="ea-cell-value">{p.value}</span>
                   <span className="ea-cell-status">
                     {p.interest === 'Very high' && <span className="ea-status-icon ea-status-up">↗</span>}
-                    {p.interest === 'High' && <span className="ea-status-icon ea-status-mid">→</span>}
-                    {p.interest === 'Medium' && <span className="ea-status-icon ea-status-mid">→</span>}
+                    {(p.interest === 'High' || p.interest === 'Medium') && <span className="ea-status-icon ea-status-mid">→</span>}
                   </span>
                 </button>
               )
@@ -123,13 +105,20 @@ export function TransferHub({ prospects, shortlist, transferList, loanList, bloc
           </div>
         </section>
 
-        {/* Right: player detail */}
+        {/* Right: detail + form */}
         <section className="ea-detail-panel" style={{ '--detail-primary': positionColors[selected.position] ?? '#1f8a5f' } as CSSProperties}>
+          {/* Hero */}
           <div className="ea-detail-hero">
             <div className="ea-detail-placeholder">
-              <PlayerPortrait initials={selected.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()} accent={positionColors[selected.position] ?? '#1f8a5f'} shirt={posNumberFor(selected.position)} size="xl" className="ea-detail-portrait" />
+              <PlayerPortrait
+                initials={selected.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
+                accent={positionColors[selected.position] ?? '#1f8a5f'}
+                shirt={posNumberFor(selected.position)}
+                size="xl"
+                className="ea-detail-portrait"
+              />
               <div className="ea-detail-overlay">
-                <span className="ea-detail-shirt">{selected.name.split(' ').map((n) => n[0]).slice(0, 1).join('')}{posNumberFor(selected.position)}</span>
+                <span className="ea-detail-shirt">{posNumberFor(selected.position)}</span>
               </div>
             </div>
 
@@ -137,7 +126,7 @@ export function TransferHub({ prospects, shortlist, transferList, loanList, bloc
               <div className="ea-detail-meta-row top">
                 <span className="ea-detail-flags">
                   <span className="ea-detail-flag">{selected.flag}</span>
-                  <span className="ea-detail-position">{selected.position}{selected.position === 'RM' ? ' · LM · ST · LW' : ` · LM · ST · LW`}</span>
+                  <span className="ea-detail-position">{selected.position}</span>
                 </span>
                 <span className="ea-detail-rating">{selected.rating}</span>
               </div>
@@ -146,78 +135,49 @@ export function TransferHub({ prospects, shortlist, transferList, loanList, bloc
               </div>
               <div className="ea-detail-meta-row contract">
                 <div className="ea-contract-bar">
-                  <span className="ea-contract-money">{formatMoney(selected.id * 88).slice(0, 4)} <i>M</i></span>
-                  <span className="ea-contract-fee">{formatMoney(transferFee)}<i>0</i></span>
+                  <span className="ea-contract-money">{selected.value}</span>
+                  <span className="ea-contract-fee">Age {selected.age}</span>
                 </div>
                 <div className="ea-detail-substats">
-                  {['OVR','OVR','OVR','OVR'].map((l, i) => (
-                    <span key={i}><i>{l}</i><b>{selected.rating - i}</b></span>
-                  ))}
+                  <span><i>OVR</i><b>{selected.rating}</b></span>
+                  <span><i>POS</i><b>{selected.position}</b></span>
+                  <span><i>POT</i><b>{selected.potential.split('–')[1] ?? selected.potential}</b></span>
+                  <span><i>AGE</i><b>{selected.age}</b></span>
                 </div>
                 <div className="ea-interest-row">
-                  <span>Player Interest</span>
-                  <strong className={selected.interest === 'Very high' ? 'interest-very-high' : 'interest-medium'}>
-                    {selected.interest.toUpperCase()}
-                  </strong>
+                  <span>Interest</span>
+                  <strong className={selected.interest === 'Very high' ? 'interest-very-high' : 'interest-medium'}>{selected.interest.toUpperCase()}</strong>
                 </div>
               </div>
               <div className="ea-detail-meta-row bottom">
                 <table className="ea-detail-table">
                   <tbody>
-                    <tr><th>Age</th><td>{selected.age}</td></tr>
-                    <tr><th>Expected Market Value (xTV)</th><td><b>{selected.value}</b></td></tr>
-                    <tr><th>Weekly Wage</th><td><b>$480.8K</b></td></tr>
-                    <tr><th>Release Clause</th><td><b>$150.0M</b></td></tr>
+                    <tr><th>Club</th><td>{selected.club}</td></tr>
+                    <tr><th>Value</th><td><b>{selected.value}</b></td></tr>
+                    <tr><th>Contract</th><td><b>4 yrs</b></td></tr>
+                    <tr><th>Release clause</th><td><b>None</b></td></tr>
                   </tbody>
                 </table>
                 <table className="ea-detail-table second">
                   <tbody>
-                    <tr><th>PAC</th><td><b>80</b></td></tr>
-                    <tr><th>SHO</th><td><b>82</b></td></tr>
-                    <tr><th>PAS</th><td><b>80</b></td></tr>
-                    <tr><th>DRI</th><td><b>90</b></td></tr>
-                    <tr><th>DEF</th><td><b>68</b></td></tr>
-                    <tr><th>PHY</th><td><b>65</b></td></tr>
+                    <tr><th>PAC</th><td><b>{selected.rating - 8}</b></td></tr>
+                    <tr><th>SHO</th><td><b>{selected.rating - 4}</b></td></tr>
+                    <tr><th>PAS</th><td><b>{selected.rating - 6}</b></td></tr>
+                    <tr><th>DRI</th><td><b>{selected.rating}</b></td></tr>
+                    <tr><th>DEF</th><td><b>{Math.max(30, selected.rating - 30)}</b></td></tr>
+                    <tr><th>PHY</th><td><b>{selected.rating - 12}</b></td></tr>
                   </tbody>
                 </table>
-              </div>
-              <div className="ea-detail-footer">
-                <em>Enhanced by TransferRoom</em>
-              </div>
-            </div>
-            <div className="ea-scout-side" style={{ '--scout-bg': positionColors[selected.position] ?? '#2563eb' } as CSSProperties}>
-              <div className="ea-scout-callout">
-                <span className="ea-scout-status">On call with</span>
-                <strong className="ea-scout-name">Vincent Company</strong>
-                <small>FC Bayern München Manager</small>
-                <span className="ea-scout-avatar">VC</span>
-              </div>
-              <button className="ea-tension-button">Low Tension</button>
-              <p className="ea-scout-message">Happy to see you. We would be willing to buy {selected.name.split(' ').slice(-1)} for a deal worth {formatMoney(syntheticValue)}.</p>
-              <div className="ea-inner-player-card" style={{ '--inner-club': positionColors[selected.position] ?? '#2563eb' } as CSSProperties}>
-                <span className="ea-inner-club">MASON</span>
-                <span className="ea-inner-shield">{selected.flag}</span>
-                <strong className="ea-inner-name">{selected.name.split(' ').slice(-1).join(' ').toUpperCase()}</strong>
-                <span className="ea-inner-pos">ST</span>
-                <span className="ea-inner-rating">{selected.rating}<i>OVR</i></span>
-                <div className="ea-inner-meta">
-                  <span><i>Age</i><b>{selected.age}</b></span>
-                  <span><i>Pos</i><b>{selected.position}</b></span>
-                  <span><i>OVR</i><b>{selected.rating}</b></span>
-                </div>
-                <span className="ea-inner-value">{selected.value}</span>
-                <span className="ea-inner-wage">Weekly Wage · $140.0/0K</span>
-                <em className="ea-inner-credit">Enhanced by TransferRoom</em>
               </div>
             </div>
           </div>
 
-          {/* Comments + Match Report side panel */}
+          {/* Comments + Match Report */}
           <div className="ea-comments-panel">
             <div className="ea-comments-section">
               <h4>Negotiation thread</h4>
               <div className="ea-comments-list">
-                {(transferComments[selected.id] ?? defaultComments).map((c, i) => (
+                {(transferComments[selected.id] ?? defaultComments).map((c: { from: string; text: string; at: number }, i: number) => (
                   <div key={i} className="ea-comment-item">
                     <span className="ea-comment-from">{c.from}</span>
                     <p>{c.text}</p>
@@ -227,20 +187,31 @@ export function TransferHub({ prospects, shortlist, transferList, loanList, bloc
               </div>
               <form
                 className="ea-comment-input-row"
-                onSubmit={(e) => { e.preventDefault(); if (draftComment.trim()) { onSendComment(selected.id, draftComment.trim()); setDraftComment(''); onShowToast('Message sent to agent') } }}
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (draftComment.trim()) {
+                    onSendComment(selected.id, draftComment.trim())
+                    setDraftComment('')
+                    onShowToast('Message sent')
+                  }
+                }}
               >
-                <input value={draftComment} onChange={(e) => setDraftComment(e.target.value)} placeholder={`Message ${selected.name.split(' ').slice(-1).join('')}\u2019s agent\u2026`} />
-                <button type="submit" aria-label="Send message"><Icon>→</Icon></button>
+                <input
+                  value={draftComment}
+                  onChange={(e) => setDraftComment(e.target.value)}
+                  placeholder={`Message agent for ${selected.name.split(' ').slice(-1).join('')}`}
+                />
+                <button type="submit" aria-label="Send"><Icon>→</Icon></button>
               </form>
             </div>
             <div className="ea-comments-section">
-              <h4>Match Report · recent</h4>
+              <h4>Recent matches</h4>
               <div className="ea-match-report-list">
-                {(transferReports[selected.id] ?? defaultReports).map((m, i) => (
+                {defaultReports.map((m, i) => (
                   <div className="ea-match-report-row" key={i}>
                     <span className="ea-match-report-opp">{m.match}</span>
                     <span className="ea-match-report-score">{m.result}</span>
-                    <span className="ea-match-report-meta">{m.minutes}\u2019 · {m.goals}G · {m.assists}A</span>
+                    <span className="ea-match-report-meta">{m.minutes}' · {m.goals}G · {m.assists}A</span>
                     <span className="ea-match-report-rating">{m.rating.toFixed(1)}</span>
                   </div>
                 ))}
@@ -248,64 +219,57 @@ export function TransferHub({ prospects, shortlist, transferList, loanList, bloc
             </div>
           </div>
 
-          {/* TRANSFER PLAYER form */}
+          {/* Transfer form */}
           <div className="ea-transfer-form">
             <div className="ea-transfer-form-head">
-              <h3>TRANSFER PLAYER</h3>
-              <p>{selected.name.toUpperCase()} · YOUR CLUB · SCOPE WITH SELLING CLUB</p>
+              <h3>Submit offer</h3>
+              <p>SCOPE WITH SELLING CLUB · {selected.name.toUpperCase()}</p>
             </div>
             <div className="ea-transfer-grid">
               <div className="ea-transfer-row">
-                <span>Start Date</span>
-                <div className="ea-pill-row">
-                  <button className="ea-pill active">‹ IMMEDIATE ›</button>
-                </div>
+                <span>Start date</span>
+                <button className="ea-pill active">‹ Immediate ›</button>
               </div>
-              {[
-                { label: 'Transfer Fee', value: formatMoney(transferFee) },
-                { label: 'Installments', value: 'NONE' },
-                { label: 'Exchange Player', value: 'NONE' },
-                { label: 'Achievement Bonus', value: 'NONE' },
-                { label: 'Other Clauses', value: 'INCLUDED' },
-              ].map((r) => (
-                <div className="ea-transfer-row" key={r.label}>
-                  <span>{r.label}</span>
-                  <b>{r.value}</b>
-                </div>
-              ))}
+              <div className="ea-transfer-row"><span>Transfer fee</span><b>{formatMoney(transferFee)}</b></div>
+              <div className="ea-transfer-row"><span>Installments</span><b>None</b></div>
+              <div className="ea-transfer-row"><span>Exchange player</span><b>None</b></div>
+              <div className="ea-transfer-row"><span>Achievement bonus</span><b>None</b></div>
+              <div className="ea-transfer-row"><span>Other clauses</span><b>Included</b></div>
               <div className="ea-divider" />
-              <div className="ea-transfer-row"><span>Paid Now / Future Payments</span><b>{formatMoney(paidNow)} / {formatMoney(futurePayments)}.00K</b></div>
-              <div className="ea-transfer-row"><span>Potential Add-Ons</span><b>$0.00K</b></div>
-              <div className="ea-transfer-row"><span>Budget Remaining</span><b>{formatMoney(budgetRemaining).slice(0, 4)}M</b></div>
+              <div className="ea-transfer-row"><span>Paid now</span><b>{formatMoney(paidNow)}</b></div>
+              <div className="ea-transfer-row"><span>Future payments</span><b>{formatMoney(futurePayments)}</b></div>
+              <div className="ea-transfer-row"><span>Budget remaining</span><b>{formatMoney(budgetRemaining)}</b></div>
               <div className="ea-make-offer-row">
-                <button className="ea-make-offer" onClick={() => onShowToast(`Offer of ${formatMoney(transferFee)} submitted for ${selected.name}`)}>
-                  Make Offer
+                <button
+                  className="ea-make-offer"
+                  onClick={() => onShowToast(`Offer of ${formatMoney(transferFee)} submitted for ${selected.name}`)}
+                >
+                  Make offer
                 </button>
               </div>
             </div>
             <div className="ea-call-controls">
-              <button className="ea-end-call" onClick={() => onShowToast('Held to end negotiation')} aria-label="End negotiation">
+              <button className="ea-end-call" onClick={() => onShowToast('Negotiation ended')} aria-label="End negotiation">
                 <span className="ea-end-call-icon">⏸</span>
               </button>
-              <span>Hold to End Negotiation</span>
+              <span>Hold to end</span>
             </div>
           </div>
         </section>
       </div>
 
-      {/* Bottom action footer */}
       <footer className="ea-hub-actions">
         <button className="ea-action-btn" onClick={() => onToggleShortlist(selected.id)}>
-          <Icon>★</Icon>{shortlist.includes(selected.id) ? 'Remove from Shortlist' : 'Add to Shortlist'}
+          <Icon>★</Icon>{shortlist.includes(selected.id) ? 'Remove from shortlist' : 'Add to shortlist'}
         </button>
         <button className="ea-action-btn" onClick={() => onMoveTab(selected.id, 'transferList')}>
-          <Icon>↗</Icon>Move to Transfer List
+          <Icon>↗</Icon>Move to transfer list
         </button>
         <button className="ea-action-btn" onClick={() => onMoveTab(selected.id, 'loanList')}>
-          <Icon>↔</Icon>Move to Loan List
+          <Icon>↔</Icon>Move to loan list
         </button>
         <button className="ea-action-btn danger" onClick={() => onMoveTab(selected.id, 'blockedList')}>
-          <Icon>✕</Icon>Move to Blocked
+          <Icon>✕</Icon>Move to blocked
         </button>
       </footer>
     </div>
@@ -317,15 +281,14 @@ function posNumberFor(p: Prospect['position']): string {
   return map[p] ?? ''
 }
 
-// Default comments and reports used when none exist yet
 const defaultComments = [
-  { from: 'Vincent Company', text: 'Final figure is firm. If you want flexibility, we should split the agent fee.', at: Date.now() - 1000 * 60 * 22 },
+  { from: 'Selling club', text: 'Final figure is firm. If you want flexibility, we should split the agent fee.', at: Date.now() - 1000 * 60 * 22 },
   { from: 'You', text: 'We can move on wage structure but not on fee. Add 12% to sell-on and we close.', at: Date.now() - 1000 * 60 * 11 },
-  { from: 'Vincent Company', text: 'Approved. Send the contract for signature by tomorrow.', at: Date.now() - 1000 * 60 * 4 },
+  { from: 'Selling club', text: 'Approved. Send the contract for signature by tomorrow.', at: Date.now() - 1000 * 60 * 4 },
 ]
 const defaultReports = [
   { match: 'vs Sporting CP', result: 'W 3-1', minutes: 84, goals: 1, assists: 1, rating: 8.4 },
   { match: 'vs Lyon', result: 'D 1-1', minutes: 90, goals: 0, assists: 1, rating: 7.6 },
   { match: 'vs Marseille', result: 'W 4-0', minutes: 78, goals: 2, assists: 0, rating: 8.9 },
   { match: 'vs Benfica', result: 'L 1-2', minutes: 90, goals: 0, assists: 0, rating: 6.4 },
-] // ── End transferHub defaults ──
+]

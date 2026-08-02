@@ -18,19 +18,16 @@ export function PlayerProfile({ player, setActiveView, onShowToast }: PlayerProf
 
   return (
     <div className="ea-fc-theme ea-player-profile" style={{ '--pp-accent': accent, '--pp-tint': tint } as CSSProperties}>
-      {/* Top tabs */}
       <header className="ea-top-tabs">
-        <div className="ea-brand-mark" aria-label="My Career">
-          <span>MC</span>
-        </div>
+        <div className="ea-brand-mark"><span>NS</span></div>
         <nav className="ea-tab-nav">
           <button className="ea-tab" onClick={() => setActiveView('squad')}>Squad</button>
-          <button className="ea-tab ea-tab-primary">Player Profile</button>
+          <button className="ea-tab ea-tab-primary">Player profile</button>
           <div className="ea-tab-divider" />
-          <button className={`ea-tab ${tab === 'overview' ? 'ea-tab-active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
-          <button className={`ea-tab ${tab === 'attributes' ? 'ea-tab-active' : ''}`} onClick={() => setTab('attributes')}>Attributes</button>
-          <button className={`ea-tab ${tab === 'offers' ? 'ea-tab-active' : ''}`} onClick={() => setTab('offers')}>Offers</button>
-          <button className={`ea-tab ${tab === 'stats' ? 'ea-tab-active' : ''}`} onClick={() => setTab('stats')}>Stats</button>
+          <button className={`ea-tab${tab === 'overview' ? ' ea-tab-active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
+          <button className={`ea-tab${tab === 'attributes' ? ' ea-tab-active' : ''}`} onClick={() => setTab('attributes')}>Attributes</button>
+          <button className={`ea-tab${tab === 'offers' ? ' ea-tab-active' : ''}`} onClick={() => setTab('offers')}>Offers</button>
+          <button className={`ea-tab${tab === 'stats' ? ' ea-tab-active' : ''}`} onClick={() => setTab('stats')}>Stats</button>
         </nav>
       </header>
 
@@ -44,106 +41,70 @@ export function PlayerProfile({ player, setActiveView, onShowToast }: PlayerProf
 
 function OverviewTab({ player, onShowToast }: { player: Player; onShowToast: (m: string) => void }) {
   const accent = positionColors[player.position] ?? '#1f8a5f'
+  const initials = player.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
   return (
     <div className="ea-pp-overview" style={{ '--pp-accent': accent } as CSSProperties}>
       <section className="ea-pp-hero">
         <div className="ea-pp-hero-image">
           <div className="ea-pp-placeholder">
-            <PlayerPortrait initials={player.initials} accent={accent} shirt={player.shirtNumber ?? player.id} size="xl" className="ea-pp-portrait" />
-            <span className="ea-pp-handwritten-age">
-              <b>{Math.floor(Number(player.dob?.match(/\d+/)?.[0] ?? player.age))}</b>
-              <small>Age (Date of Birth)</small>
-            </span>
+            <PlayerPortrait initials={initials} accent={accent} shirt={player.shirtNumber ?? player.id} size="xl" className="ea-pp-portrait" />
             <span className="ea-pp-image-name">{player.name.split(' ').slice(-1).join('').toUpperCase()}</span>
           </div>
         </div>
         <div className="ea-pp-hero-meta">
-          <span className="ea-pp-position">{player.position}{player.position === 'RM' ? ' · LM · ST · LW' : ' · LM · ST · LW'}</span>
-          <h1 className="ea-pp-display-name">{player.name.split(' ').map((n) => n[0]).join('')}. {player.name.split(' ').slice(-1).join('').toUpperCase()}</h1>
+          <span className="ea-pp-position">{player.position}</span>
+          <h1 className="ea-pp-display-name">{player.name}</h1>
           <div className="ea-pp-rating-block">
             <span className="ea-pp-rating">{player.rating}</span>
-            <div className="ea-pp-rating-stars">
-              {[1,2,3,4,5,6,7].map((s) => <i key={s}>★</i>)}
-              <span className="ea-pp-rating-label">{`${player.rating} ${player.rating} 0 OVR 0 OVR 0 OVR`}</span>
-            </div>
+            <span className="kicker">Overall</span>
           </div>
-          <p className="ea-pp-tagline">An Exciting Prospect,<br/>Happy With Current Terms.</p>
+          <p className="ea-pp-tagline">{player.club ?? 'NORTHSTAR FC'} · {player.flag ?? 'HQ'} · Age {player.age}</p>
         </div>
       </section>
 
       <section className="ea-pp-status-grid">
         <div className="ea-pp-status-cell">
-          <span>Form</span>
-          <strong className="lime">
-            <Icon>✓</Icon>OK
-          </strong>
+          <span>Form</span><strong><Icon>✓</Icon> OK</strong>
         </div>
         <div className="ea-pp-status-cell">
-          <span>Morale</span>
-          <strong className="orange">
-            <span className="emo">☺</span>HAPPY
-          </strong>
+          <span>Morale</span><strong className="orange"><span className="emo">☺</span> Happy</strong>
         </div>
         <div className="ea-pp-status-cell">
-          <span>Match Fitness</span>
-          <strong className="cyan">
-            <Icon>⚡</Icon>SHARP
-          </strong>
+          <span>Match fitness</span><strong className="cyan"><Icon>⚡</Icon> Sharp</strong>
         </div>
         <div className="ea-pp-status-cell">
-          <span>Condition</span>
-          <strong className="lime">
-            <Icon>✓</Icon>READY TO PLAY
-          </strong>
+          <span>Condition</span><strong className="lime"><Icon>✓</Icon> Ready</strong>
         </div>
       </section>
 
       <section className="ea-pp-attributes-grid">
-        <div className="ea-pp-attr-cell">
-          <span>Club</span>
-          <b>{player.club?.toUpperCase() ?? 'YOUR CLUB'} · <i style={{ fontStyle: 'normal' }}>J</i></b>
-        </div>
-        <div className="ea-pp-attr-cell">
-          <span>Expected Market Value (xTV)</span>
-          <b>$${(player.value / 1_000_000).toFixed(1)}M<i className="stars">★★★★★</i></b>
-        </div>
-        <div className="ea-pp-attr-cell">
-          <span>Nationality/Region</span>
-          <b>{player.flag ?? 'HQ'}<i className="flag-line"> TÜRKIYE</i></b>
-        </div>
-        <div className="ea-pp-attr-cell">
-          <span>Weekly Wage</span>
-          <b>$${(player.wage / 1000).toFixed(1)}K<i className="stars">★★★★★</i></b>
-        </div>
+        <div className="ea-pp-attr-cell"><span>Club</span><b>{player.club?.toUpperCase() ?? 'YOUR CLUB'}</b></div>
+        <div className="ea-pp-attr-cell"><span>Market value</span><b className="mono">${(player.value / 1_000_000).toFixed(1)}M</b></div>
+        <div className="ea-pp-attr-cell"><span>Salary</span><b className="mono">${(player.wage / 1000).toFixed(1)}K/wk</b></div>
+        <div className="ea-pp-attr-cell"><span>Contract</span><b>{player.contract} years</b></div>
       </section>
 
       <section className="ea-pp-skills-grid">
-        {[
-          { name: 'Pace', val: player.skills.pace + 4 },
-          { name: 'Shooting', val: player.skills.shooting },
-          { name: 'Passing', val: player.skills.passing + 4 },
-          { name: 'Dribbling', val: player.skills.dribbling + 4 },
-          { name: 'Defending', val: Math.max(30, player.skills.pace - 50) },
-          { name: 'Physical', val: player.skills.physical },
-        ].map((s) => (
-          <div className="ea-pp-skill-row" key={s.name}>
-            <span>{s.name}</span>
-            <b>{s.val}</b>
-          </div>
-        ))}
+        {['Pace', 'Shooting', 'Passing', 'Dribbling', 'Defending', 'Physical'].map((name, i) => {
+          const vals = [player.skills.pace, player.skills.shooting, player.skills.passing, player.skills.dribbling, Math.max(30, player.skills.physical - 30), player.skills.physical]
+          return (
+            <div className="ea-pp-skill-row" key={name}>
+              <span>{name}</span>
+              <b>{vals[i]}</b>
+            </div>
+          )
+        })}
       </section>
 
       <section className="ea-pp-extras-grid">
-        <div className="ea-pp-attr-cell"><span>Height & Weight</span><b>{player.height} / {player.weight}</b></div>
-        <div className="ea-pp-attr-cell"><span>Weak Foot</span><b>{'★'.repeat(player.weakFoot ?? 4)}</b></div>
-        <div className="ea-pp-attr-cell"><span>Contract Until</span><b>31 JUL {2026 + (player.contract ?? 3)}</b></div>
-        <div className="ea-pp-attr-cell"><span>Release Clause</span><b>NONE</b></div>
-        <div className="ea-pp-attr-cell"><span>Preferred Foot</span><b>{player.preferredFoot ?? 'Right'}</b></div>
+        <div className="ea-pp-attr-cell"><span>Height · weight</span><b>{player.height ?? '5\'11"'} · {player.weight ?? '170 LBS'}</b></div>
+        <div className="ea-pp-attr-cell"><span>Weak foot</span><b>{'★'.repeat(player.weakFoot ?? 4)}</b></div>
+        <div className="ea-pp-attr-cell"><span>Preferred foot</span><b>{player.preferredFoot ?? 'Right'}</b></div>
       </section>
 
-      <footer className="ea-pp-footer">
-        <button className="ea-pp-show-actions" onClick={() => onShowToast('Show Actions menu opened')}>Show Actions</button>
-      </footer>
+      <div className="ea-pp-footer">
+        <button className="ea-pp-show-actions" onClick={() => onShowToast('Show actions menu opened')}>Show actions</button>
+      </div>
     </div>
   )
 }
@@ -159,7 +120,7 @@ function AttributesTab({ player }: { player: Player }) {
           <div className="ea-pp-attr-bar" key={key}>
             <span>{key.toUpperCase()}</span>
             <b>{val}</b>
-            <div className="ea-pp-attr-bar-track"><i style={{ width: `${val}%`, background: '#00d4ff' }} /></div>
+            <div className="ea-pp-attr-bar-track"><i style={{ width: `${val}%`, background: 'var(--accent)' }} /></div>
           </div>
         ))}
       </div>
@@ -169,9 +130,9 @@ function AttributesTab({ player }: { player: Player }) {
 
 function OffersTab({ player, onShowToast }: { player: Player; onShowToast: (m: string) => void }) {
   const offers = [
-    { id: 'sp1', club: 'Bayern München', fee: 88, status: 'Pending', color: '#dc052d' },
-    { id: 'sp2', club: 'Real Madrid', fee: 102, status: 'Negotiating', color: '#fcbf00' },
-    { id: 'sp3', club: 'Man City', fee: 75, status: 'Withdrawn', color: '#6cabdd' },
+    { id: 'sp1', club: 'Bayern München', status: 'Pending', color: '#dc052d' },
+    { id: 'sp2', club: 'Real Madrid', status: 'Negotiating', color: '#fcbf00' },
+    { id: 'sp3', club: 'Man City', status: 'Withdrawn', color: '#6cabdd' },
   ]
   return (
     <div className="ea-pp-offers-tab">
@@ -186,9 +147,6 @@ function OffersTab({ player, onShowToast }: { player: Player; onShowToast: (m: s
             <button className="ea-pp-offer-btn" onClick={() => onShowToast(`Reviewing ${o.club} offer`)}>Open negotiation</button>
           </article>
         ))}
-        {offers.length === 0 && (
-          <div className="ea-pp-no-offers">No active offers yet. Keep performing and the clubs will come.</div>
-        )}
       </div>
     </div>
   )
@@ -199,9 +157,9 @@ function StatsTab({ player }: { player: Player }) {
     { label: 'Matches', val: 32 },
     { label: 'Goals', val: 14 },
     { label: 'Assists', val: 9 },
-    { label: 'Avg Rating', val: (Number((player.rating / 12).toFixed(1))) },
-    { label: 'Yellow Cards', val: 4 },
-    { label: 'Red Cards', val: 0 },
+    { label: 'Avg rating', val: (player.rating / 12).toFixed(1) },
+    { label: 'Yellows', val: 4 },
+    { label: 'Reds', val: 0 },
   ]
   return (
     <div className="ea-pp-stats-tab">
@@ -232,7 +190,7 @@ function RadarChart({ player }: { player: Player }) {
       {[0.4, 0.7, 1].map((scale) => (
         <circle key={scale} cx={cx} cy={cy} r={r * scale} fill="none" stroke="rgba(148,163,184,.15)" />
       ))}
-      <polygon points={polygon} fill="rgba(0,212,255,.25)" stroke="#00d4ff" strokeWidth={2} />
+      <polygon points={polygon} fill="rgba(200,255,0,.25)" stroke="var(--accent)" strokeWidth={2} />
       {keys.map((k, i) => {
         const angle = -Math.PI / 2 + (i / keys.length) * Math.PI * 2
         const x = cx + Math.cos(angle) * (r + 14)

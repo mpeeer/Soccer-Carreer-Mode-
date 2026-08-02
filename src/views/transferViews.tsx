@@ -4,12 +4,173 @@ import type { CareerProfile, ClubOffer, TransferApproach } from '../types'
 import { formatMoney, Icon } from '../utils'
 
 export function TransferApproachModal({ approach, profile, onAccept, onDecline, onConsider, onClose }: { approach: TransferApproach; profile: CareerProfile; onAccept: (a: TransferApproach) => void; onDecline: (a: TransferApproach) => void; onConsider: (a: TransferApproach) => void; onClose: () => void }) {
-  return <div className="modal-backdrop" onClick={onClose}><div className="modal transfer-modal" onClick={(e) => e.stopPropagation()} style={{ '--offer-primary': approach.primaryColor, '--offer-secondary': approach.secondaryColor } as CSSProperties}><button className="modal-close" onClick={onClose}>×</button><div className="transfer-modal-header" style={{ background: `linear-gradient(135deg, ${approach.primaryColor}, ${approach.secondaryColor})` }}><span className="live-pill"><i /> OFFICIAL APPROACH</span><div className="transfer-modal-crest">{approach.clubShort}</div><h2>{approach.clubName}</h2><p>{approach.identity}</p></div><div className="transfer-modal-body"><div className="transfer-storyline"><span className="section-kicker">THE APPROACH</span><p>{approach.storyline}</p></div><div className="transfer-perks"><div className="transfer-perk-column"><span className="section-kicker">PERKS</span>{approach.perks.map((p) => <div key={p} className="transfer-perk-item positive">+ {p}</div>)}</div><div className="transfer-perk-column"><span className="section-kicker">RISKS</span>{approach.risks.map((r) => <div key={r} className="transfer-perk-item risk">− {r}</div>)}</div></div><div className="transfer-comparison"><div className="transfer-club-comp current"><span>{profile.clubShort}</span><small>Current · {profile.league}</small></div><Icon className="transfer-arrow">→</Icon><div className="transfer-club-comp next"><span>{approach.clubShort}</span><small>{approach.league}</small></div></div><div className="transfer-meta-grid"><span><b>{profile.mode === 'manager' ? 'BUDGET' : 'WAGE'}</b>{profile.mode === 'manager' ? formatMoney(approach.managerBudget) : formatMoney(approach.playerWage) + '/wk'}</span><span><b>ROLE</b>{approach.playerRole}</span><span><b>TRAINING</b>{approach.playerTraining}/100</span><span><b>TRUST</b>{approach.managerTrust}%</span></div></div><div className="transfer-modal-footer"><button className="primary-button" onClick={() => { onAccept(approach) }}>Accept & join {approach.clubShort} <Icon>→</Icon></button><button className="outline-button" onClick={() => { onConsider(approach) }}>Consider later</button><button className="ghost-button" onClick={() => { onDecline(approach) }}>Decline</button></div></div></div>
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: 0, maxWidth: 520, '--offer-primary': approach.primaryColor, '--offer-secondary': approach.secondaryColor } as CSSProperties}>
+        <button className="modal-close" onClick={onClose}>×</button>
+        <div style={{
+          padding: 'var(--s-7)', color: '#fff',
+          background: `linear-gradient(135deg, ${approach.primaryColor}, ${approach.secondaryColor})`,
+          position: 'relative',
+        }}>
+          <span className="pill" style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', borderColor: 'rgba(255,255,255,0.3)' }}>Official approach</span>
+          <div style={{
+            width: 56, height: 56, borderRadius: 'var(--r-md)',
+            background: 'rgba(0,0,0,0.25)', color: '#fff',
+            fontWeight: 800, fontSize: 18,
+            display: 'grid', placeItems: 'center',
+            marginTop: 'var(--s-4)',
+          }}>{approach.clubShort}</div>
+          <h2 style={{ fontSize: 'var(--t-2xl)', fontWeight: 800, margin: 'var(--s-3) 0 var(--s-2)' }}>{approach.clubName}</h2>
+          <small style={{ fontSize: 'var(--t-sm)', opacity: 0.85 }}>{approach.identity}</small>
+        </div>
+        <div style={{ padding: 'var(--s-6)' }}>
+          <div style={{ marginBottom: 'var(--s-5)' }}>
+            <span className="kicker">Brief</span>
+            <p className="muted" style={{ marginTop: 6, fontSize: 'var(--t-sm)', lineHeight: 1.6 }}>{approach.storyline}</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--s-4)', marginBottom: 'var(--s-5)' }}>
+            <div>
+              <span className="kicker accent">Perks</span>
+              <div style={{ marginTop: 'var(--s-2)' }}>
+                {approach.perks.map((p) => (
+                  <div key={p} style={{ fontSize: 'var(--t-sm)', color: 'var(--good)', padding: '4px 0' }}>+ {p}</div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="kicker" style={{ color: 'var(--warn)' }}>Trade-offs</span>
+              <div style={{ marginTop: 'var(--s-2)' }}>
+                {approach.risks.map((r) => (
+                  <div key={r} style={{ fontSize: 'var(--t-sm)', color: 'var(--warn)', padding: '4px 0' }}>− {r}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--s-4)', padding: 'var(--s-4) 0', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
+            <div style={{ textAlign: 'center' }}>
+              <span className="kicker">{profile.clubShort}</span>
+              <small className="muted" style={{ display: 'block', fontSize: 'var(--t-xs)' }}>Current · {profile.league}</small>
+            </div>
+            <div style={{ textAlign: 'center', position: 'relative' }}>
+              <span className="kicker accent">{approach.clubShort}</span>
+              <small className="muted" style={{ display: 'block', fontSize: 'var(--t-xs)' }}>Target · {approach.league}</small>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--s-3)', marginTop: 'var(--s-5)' }}>
+            <div><span className="kicker">{profile.mode === 'manager' ? 'Budget' : 'Wage'}</span><b className="mono" style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700 }}>{profile.mode === 'manager' ? formatMoney(approach.managerBudget) : formatMoney(approach.playerWage) + '/wk'}</b></div>
+            <div><span className="kicker">Role</span><b style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700 }}>{approach.playerRole}</b></div>
+            <div><span className="kicker">Training</span><b className="mono" style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700 }}>{approach.playerTraining}</b></div>
+            <div><span className="kicker">Trust</span><b className="mono" style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700 }}>{approach.managerTrust}%</b></div>
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--s-2)', marginTop: 'var(--s-6)' }}>
+            <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => onAccept(approach)}>
+              Accept &amp; join {approach.clubShort} <Icon>→</Icon>
+            </button>
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => onConsider(approach)}>Consider later</button>
+          </div>
+          <button className="btn btn-link" style={{ marginTop: 'var(--s-3)' }} onClick={() => onDecline(approach)}>Decline</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function TransferOffersView({ profile, approaches, clubOffer, onConsider, onAccept, onDecline, onCounter }: { profile: CareerProfile; approaches: TransferApproach[]; clubOffer: ClubOffer | null; onConsider: (a: TransferApproach) => void; onAccept: (a: TransferApproach) => void; onDecline: (a: TransferApproach) => void; onCounter: (a: TransferApproach, demand: string) => void }) {
   const active = approaches.filter((a) => a.stage !== 'declined' && a.stage !== 'accepted')
   const decided = approaches.filter((a) => a.stage === 'declined' || a.stage === 'accepted')
-  return <><PageHeader eyebrow={`TRANSFER DESK · ${profile.clubName.toUpperCase()}`} title="Transfer desk" description={`Active approaches · ${profile.mode === 'manager' ? 'Manager' : 'Player'} market`} action={<button className="outline-button" onClick={() => {}}><Icon>↔</Icon> Agent: Maya Chen</button>} /><div className="transfer-active-section">{active.length === 0 ? <div className="empty-state panel"><div>↔</div><h3>No active approaches</h3><p>Clubs will make approaches as your reputation grows. Keep performing and the calls will come.</p></div> : active.map((approach) => <article className="transfer-offer-card panel" key={approach.id}><div className="transfer-offer-top"><div className="transfer-offer-crest" style={{ background: `linear-gradient(135deg, ${approach.primaryColor}, ${approach.secondaryColor})` }}>{approach.clubShort}</div><div className="transfer-offer-info"><span className="section-kicker">{approach.stage.toUpperCase()}</span><h3>{approach.clubName}</h3><p>{approach.identity} · {approach.league}</p></div><span className={`difficulty ${approach.managerTrust > 75 ? 'low' : approach.managerTrust > 60 ? 'medium' : 'high'}`}>{approach.managerTrust > 75 ? 'Warm interest' : approach.managerTrust > 60 ? 'Formal bid' : 'Urgent pursuit'}</span></div><p className="transfer-offer-narrative">{approach.storyline}</p><div className="transfer-offer-perks"><span className="section-kicker">WHAT THEY OFFER</span><div className="tag-row">{approach.perks.map((p) => <span key={p}>{p}</span>)}</div></div><div className="transfer-offer-meta"><span><b>{profile.mode === 'manager' ? 'BUDGET' : 'WAGE'}</b>{profile.mode === 'manager' ? formatMoney(approach.managerBudget) : formatMoney(approach.playerWage) + '/wk'}</span><span><b>ROLE</b>{approach.playerRole}</span><span><b>TRAINING</b>{approach.playerTraining}</span><span><b>TRUST</b>{approach.managerTrust}%</span></div>{approach.stage === 'negotiating' && <div className="transfer-counter"><span className="section-kicker">YOUR DEMAND</span><p>{approach.counterDemand || 'No demand submitted yet.'}</p></div>}<div className="transfer-offer-actions"><button className="primary-button" onClick={() => { onAccept(approach) }}>Accept <Icon>→</Icon></button><button className="outline-button" onClick={() => { onCounter(approach, `Improved ${profile.mode === 'manager' ? 'budget by 15%' : 'wages and role'} requested`) }}>{approach.stage === 'negotiating' ? 'Re-counter' : 'Negotiate'} <Icon>↔</Icon></button><button className="ghost-button" onClick={() => { onDecline(approach) }}>Decline</button></div></article>)}</div>{decided.length > 0 && <><div className="transfer-history-header"><span className="section-kicker">ARCHIVED</span></div><div className="transfer-history">{decided.map((approach) => <div className="brief-item" key={approach.id}><div className={`brief-icon ${approach.stage === 'accepted' ? 'lime' : 'purple'}`}>{approach.stage === 'accepted' ? '✓' : '✕'}</div><div><b>{approach.clubName}</b><p>{approach.stage === 'accepted' ? 'Transfer completed' : 'Approach declined'} · Week {approach.arrivalWeek}</p></div><span className="brief-time">{approach.stage === 'accepted' ? 'DONE' : 'CLOSED'}</span></div>)}</div></>}</>
-}
 
+  return (
+    <>
+      <PageHeader
+        eyebrow={`Transfer desk · ${profile.clubName}`}
+        title="Transfer desk"
+        description={`Active approaches · ${profile.mode === 'manager' ? 'Manager' : 'Player'} market`}
+        action={<button className="btn btn-ghost"><Icon>↔</Icon> Agent</button>}
+      />
+
+      {active.length === 0 ? (
+        <section className="panel" style={{ textAlign: 'center', padding: 'var(--s-9)' }}>
+          <div style={{ fontSize: 32, marginBottom: 'var(--s-3)' }}>↔</div>
+          <h3 style={{ fontSize: 'var(--t-lg)', fontWeight: 700 }}>No active approaches</h3>
+          <p className="muted" style={{ marginTop: 6 }}>Clubs will make approaches as your reputation grows. Keep performing.</p>
+        </section>
+      ) : (
+        <div className="stack-lg">
+          {active.map((approach) => (
+            <article
+              key={approach.id}
+              className="panel"
+              style={{ '--offer-primary': approach.primaryColor, '--offer-secondary': approach.secondaryColor } as CSSProperties}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-4)', marginBottom: 'var(--s-4)' }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: 'var(--r-md)',
+                  background: `linear-gradient(135deg, ${approach.primaryColor}, ${approach.secondaryColor})`,
+                  color: '#fff', fontWeight: 800, fontSize: 18,
+                  display: 'grid', placeItems: 'center',
+                }}>{approach.clubShort}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span className="kicker">{approach.stage.toUpperCase()}</span>
+                  <b style={{ display: 'block', fontSize: 'var(--t-xl)', fontWeight: 800 }}>{approach.clubName}</b>
+                  <small className="muted" style={{ fontSize: 'var(--t-xs)' }}>{approach.identity} · {approach.league}</small>
+                </div>
+                <span className={`pill ${approach.managerTrust > 75 ? 'good' : approach.managerTrust > 60 ? 'warn' : 'bad'}`}>
+                  {approach.managerTrust > 75 ? 'Warm' : approach.managerTrust > 60 ? 'Formal' : 'Urgent'}
+                </span>
+              </div>
+
+              <p className="muted" style={{ fontSize: 'var(--t-sm)', lineHeight: 1.6, marginBottom: 'var(--s-4)' }}>{approach.storyline}</p>
+
+              <div style={{ marginBottom: 'var(--s-5)' }}>
+                <span className="kicker">What they offer</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 'var(--s-2)' }}>
+                  {approach.perks.map((p) => <span key={p} className="pill">{p}</span>)}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--s-3)', padding: 'var(--s-4) 0', borderTop: '1px solid var(--line)' }}>
+                <div><span className="kicker">{profile.mode === 'manager' ? 'Budget' : 'Wage'}</span><b className="mono" style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700 }}>{profile.mode === 'manager' ? formatMoney(approach.managerBudget) : formatMoney(approach.playerWage) + '/wk'}</b></div>
+                <div><span className="kicker">Role</span><b style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700 }}>{approach.playerRole}</b></div>
+                <div><span className="kicker">Training</span><b className="mono" style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700 }}>{approach.playerTraining}</b></div>
+                <div><span className="kicker">Trust</span><b className="mono" style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700 }}>{approach.managerTrust}%</b></div>
+              </div>
+
+              {approach.stage === 'negotiating' && approach.counterDemand && (
+                <div style={{ marginTop: 'var(--s-4)', padding: 'var(--s-3)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)' }}>
+                  <span className="kicker">Your demand</span>
+                  <p className="muted" style={{ marginTop: 4, fontSize: 'var(--t-sm)' }}>{approach.counterDemand}</p>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 'var(--s-2)', marginTop: 'var(--s-5)' }}>
+                <button className="btn btn-primary" onClick={() => onAccept(approach)}>Accept <Icon>→</Icon></button>
+                <button className="btn btn-ghost" onClick={() => onCounter(approach, `Improved ${profile.mode === 'manager' ? 'budget by 15%' : 'wages and role'} requested`)}>
+                  {approach.stage === 'negotiating' ? 'Re-counter' : 'Negotiate'} <Icon>↔</Icon>
+                </button>
+                <button className="btn btn-link" onClick={() => onDecline(approach)} style={{ color: 'var(--text-muted)' }}>Decline</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {decided.length > 0 && (
+        <section className="panel" style={{ marginTop: 'var(--s-5)' }}>
+          <div className="panel-head">
+            <div><span className="kicker">Archived</span><h3>Resolved approaches</h3></div>
+          </div>
+          <div className="panel-rows">
+            {decided.map((approach) => (
+              <div className="panel-row" key={approach.id}>
+                <div className={`row-icon ${approach.stage === 'accepted' ? 'accent' : ''}`}>{approach.stage === 'accepted' ? '✓' : '✕'}</div>
+                <div className="row-text"><b>{approach.clubName}</b><small>{approach.stage === 'accepted' ? 'Transfer completed' : 'Approach declined'} · Week {approach.arrivalWeek}</small></div>
+                <span className="kicker">{approach.stage === 'accepted' ? 'DONE' : 'CLOSED'}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  )
+}

@@ -192,14 +192,14 @@ function App() {
         const teamScores = newShots > m.shots && Math.random() < (0.25 * styleGoalMul * mentGoalBoost)
         const oppScores = newOppShots > m.opponentShots && Math.random() < (0.22 * styleGoalMul * lineOppChanceFactor)
         const newEvents = [...m.events]
-        if (teamScores) newEvents.push(`${nextMinute}' GOAL! ${profile!.clubShort} find the net!`)
-        if (oppScores) newEvents.push(`${nextMinute}' Goal conceded. ${m.opponentShort} break through.`)
+        if (teamScores) newEvents.push(`${nextMinute}' GOAL — ${profile!.clubShort}`)
+        if (oppScores) newEvents.push(`${nextMinute}' Goal conceded — ${m.opponentShort}`)
         if ([10, 20, 30, 40, 55, 65, 75, 85].includes(nextMinute) && Math.random() < 0.4) {
-          if (tac.pressure === 'High' && tac.playStyle === 'High Press') newEvents.push(`${nextMinute}' Pressing high — won the second ball.`)
-          else if (mentDelta >= 1.2) newEvents.push(`${nextMinute}' All-out attack — committing bodies forward.`)
-          else if (mentDelta <= -1.2) newEvents.push(`${nextMinute}' Line holds — absorbing pressure deep.`)
-          else if (tac.width === 'Wide') newEvents.push(`${nextMinute}' Stretching the pitch — wing overload.`)
-          else if (tac.playStyle === 'Possession') newEvents.push(`${nextMinute}' Settled possession — probing for the gap.`)
+          if (tac.pressure === 'High' && tac.playStyle === 'High Press') newEvents.push(`${nextMinute}' High press`)
+          else if (mentDelta >= 1.2) newEvents.push(`${nextMinute}' All-out attack`)
+          else if (mentDelta <= -1.2) newEvents.push(`${nextMinute}' Low block holds`)
+          else if (tac.width === 'Wide') newEvents.push(`${nextMinute}' Wing play`)
+          else if (tac.playStyle === 'Possession') newEvents.push(`${nextMinute}' Possession`)
         }
         if (newEvents.length > 8) newEvents.shift()
         const newPerfs = m.playerPerformances.map((pp) => {
@@ -212,7 +212,7 @@ function App() {
           return { ...pp, rating: Math.max(5, Math.min(10, pp.rating + perfShift)) }
         })
         if (nextMinute === 45 && !m.events.some((e) => e.includes('Half-time'))) {
-          newEvents.push('Half-time. Tactical audit at the touchline.')
+          newEvents.push('Half-time')
         }
         return { ...m, minute: nextMinute, possession: Math.round(newPoss), shots: newShots, opponentShots: newOppShots, teamGoals: m.teamGoals + (teamScores ? 1 : 0), opponentGoals: m.opponentGoals + (oppScores ? 1 : 0), events: newEvents.slice(-8), playerPerformances: newPerfs }
       })
@@ -239,11 +239,6 @@ function App() {
       if (boost > 0) {
         newDvrs.push({ id: Date.now() + Math.random(), playerId: p.id, playerName: p.name, rating: p.rating + boost, change: boost, reason: pp.rating >= 8 ? 'Man of the match' : 'Strong performance', tier: p.rating + boost >= 90 ? 'legend' : p.rating + boost >= 85 ? 'elite' : 'gold', instant: true })
       }
-    })
-    sorted.slice(-1).forEach((pp) => {
-      const p = players.find((pl) => pl.id === pp.id)
-      if (!p) return
-      if (pp.rating < 6.5) newDvrs.push({ id: Date.now() + 200 + Math.random(), playerId: p.id, playerName: p.name, rating: Math.max(p.rating - 1, 50), change: -1, reason: 'Below par display', tier: 'bronze', instant: true })
     })
     if (newDvrs.length > 0) setDynamicRatings((c) => [...newDvrs, ...c].slice(0, 12))
     setManagerMatch(null)
@@ -285,14 +280,13 @@ function App() {
       const completed = currentProgress + gain >= 100
       if (completed) {
         setPlayers((currentPlayers) => currentPlayers.map((player) => player.id === 900 ? { ...player, rating: Math.min(player.potential, player.rating + 1), form: Math.min(99, player.form + 3) } : player))
-        setSimulationEvents((current) => [{ id: Date.now(), label: 'Training milestone', detail: profile.mode === 'player' ? `${profile.name} reached a new development milestone.` : 'The training ground completed its daily block.' }, ...current].slice(0, 8))
+        setSimulationEvents((current) => [{ id: Date.now(), label: 'Training completed', detail: 'Season block advanced.' }, ...current].slice(0, 8))
       }
       return completed ? currentProgress + gain - 100 : currentProgress + gain
     })
     if (profile.mode === 'player') {
       setRivalryScore((current) => Math.max(0, Math.min(100, current + (simDay % 2 === 0 ? 2 : -1))))
       setManagerTrust((current) => Math.max(0, Math.min(100, current + (simDay % 3 === 0 ? 1 : 0) + (clubOffer?.playerTrustModifier ?? 0))))
-      setSimulationEvents((current) => [{ id: Date.now() + 1, label: 'Daily report', detail: `Training, recovery, and social standing processed for day ${simDay}.` }, ...current].slice(0, 8))
       if (simDay % 5 === 0 && !playerMatchPhase && dateIndex < seasonFixtures.length && !fixtureResults[dateIndex]) {
         const fixture = seasonFixtures[dateIndex]
         setPlayerMatch({ opponent: fixture.opponent, opponentShort: fixture.short, minute: 0, rating: 6.0, goals: 0, assists: 0, passes: 0, choices: [], teamGoals: 0, opponentGoals: fixture.difficulty === 'High' ? 2 : 1, stamina: 100, lastEvent: 'The whistle is about to go.' })
@@ -302,9 +296,9 @@ function App() {
     } else if (simDay % 7 === 0 && !fixtureResults[dateIndex] && !managerMatch) {
       const fixture = seasonFixtures[dateIndex % seasonFixtures.length]
       const initialPerfs = players.map((p) => ({ id: p.id, rating: p.rating }))
-      setManagerMatch({ opponent: fixture.opponent, opponentShort: fixture.short, crest: fixture.crest, home: fixture.home, minute: 0, teamGoals: 0, opponentGoals: 0, possession: 50, shots: 0, opponentShots: 0, events: ['Kick-off. The squad takes the pitch.'], playerPerformances: initialPerfs })
+      setManagerMatch({ opponent: fixture.opponent, opponentShort: fixture.short, crest: fixture.crest, home: fixture.home, minute: 0, teamGoals: 0, opponentGoals: 0, possession: 50, shots: 0, opponentShots: 0, events: ['Kick-off.'], playerPerformances: initialPerfs })
       setIsClockRunning(false)
-      setSimulationEvents((current) => [{ id: Date.now() + 2, label: 'Manager matchday', detail: `${fixture.opponent} at ${fixture.home ? 'home' : 'away'}. You have the touchline.` }, ...current].slice(0, 8))
+      setSimulationEvents((current) => [{ id: Date.now() + 2, label: 'Matchday', detail: `${fixture.opponent}, ${fixture.home ? 'home' : 'away'}.` }, ...current].slice(0, 8))
     }
     if (simDay % 3 === 0 && transferApproaches.length < 3 && Math.random() < 0.3) {
       const available = transferClubPool.filter((club) => !transferApproaches.some((a) => a.id === club.id))
@@ -312,10 +306,10 @@ function App() {
         const pick = available[Math.floor(Math.random() * available.length)]
         const approach: TransferApproach = { ...pick, arrivalDay: simDay, arrivalWeek: weekNumber, stage: 'approaching', counterDemand: '' }
         setTransferApproaches((current) => [...current, approach])
-        setActiveTransferApproach(approach)
-        setShowTransferModal(true)
-        setIsClockRunning(false)
-        setSimulationEvents((current) => [{ id: Date.now(), label: 'Transfer approach', detail: `${pick.clubName} has made an official approach.` }, ...current].slice(0, 8))
+          setActiveTransferApproach(approach)
+          setShowTransferModal(true)
+          setIsClockRunning(false)
+          setSimulationEvents((current) => [{ id: Date.now(), label: 'Transfer approach', detail: pick.clubName }, ...current].slice(0, 8))
       }
     }
   }, [profile, simDay, dateIndex, fixtureResults, players, playerMatchPhase, clubOffer, weekNumber, transferApproaches])
@@ -441,7 +435,7 @@ function App() {
 
   const doTrainingSession = (session: TrainingSession) => {
     if (trainingEnergy < session.energyCost || lastTrainingDay === simDay) {
-      showToast(lastTrainingDay === simDay ? 'You already trained today. Recover overnight.' : 'Not enough energy for this session.')
+      showToast(lastTrainingDay === simDay ? 'Already trained today.' : 'Not enough energy.')
       return
     }
     setTrainingEnergy((e) => Math.max(0, e - session.energyCost))
@@ -458,14 +452,13 @@ function App() {
 
   const acceptClubTransfer = (approach: TransferApproach) => {
     if (!profile || !clubOffer) return
-    const farewell = `"At ${profile.clubName}, the ${clubOffer.identity?.toLowerCase() ?? 'journey'} shaped everything. Now ${approach.clubName} calls." — ${profile.name}`
     setTransferApproaches((current) => current.map((a) => a.id === approach.id ? { ...a, stage: 'accepted' } : a))
     setProfile({ ...profile, clubName: approach.clubName, clubShort: approach.clubShort, league: approach.league, primaryColor: approach.primaryColor, secondaryColor: approach.secondaryColor })
     setClubOffer({ ...clubOffer, clubName: approach.clubName, clubShort: approach.clubShort, league: approach.league, primaryColor: approach.primaryColor, secondaryColor: approach.secondaryColor, managerBudget: approach.managerBudget, managerTrust: approach.managerTrust, playerWage: approach.playerWage, playerRole: approach.playerRole, playerTraining: approach.playerTraining, identity: approach.identity })
     if (profile.mode === 'player') setBudget(approach.managerBudget)
     setShowTransferModal(false)
     setActiveTransferApproach(null)
-    showToast(farewell)
+    showToast(`Transfer complete · ${approach.clubName}`)
   }
 
   const declineApproach = (approach: TransferApproach) => {
@@ -478,7 +471,7 @@ function App() {
 
   const beginPlayerMatch = () => {
     if (!playerMatch) return
-    setPlayerMatch((current) => current ? { ...current, minute: 1, lastEvent: 'You take your position. The opening phase is yours to read.' } : current)
+    setPlayerMatch((current) => current ? { ...current, minute: 1, lastEvent: 'Kick-off.' } : current)
     setPlayerMatchPhase('live')
   }
 
@@ -486,7 +479,12 @@ function App() {
     if (!playerMatch) return
     const isPositive = action === 'attack' || action === 'press' || action === 'encourage'
     const ratingGain = action === 'encourage' ? 0.2 : isPositive ? 0.25 : action === 'conserve' || action === 'hold' ? 0.12 : 0.18
-    const event = action === 'attack' ? 'You drive into space and force the back line deeper.' : action === 'press' ? 'Your pressure wins a dangerous second ball.' : action === 'risk' ? 'You attempt the ambitious pass. The crowd rises.' : action === 'encourage' ? 'You take responsibility in the interview.' : action === 'humble' ? 'You credit the team and leave the spotlight to the group.' : 'You keep the game simple and stay available.'
+    const event = action === 'attack' ? 'Driving into space.'
+      : action === 'press' ? 'Pressing high — won the second ball.'
+      : action === 'risk' ? 'Attempting the through ball.'
+      : action === 'encourage' ? 'Post-match interview.'
+      : action === 'humble' ? 'Post-match interview.'
+      : 'Keeping it simple.'
     const nextMatch: PlayerMatch = { ...playerMatch, rating: Math.min(10, Number((playerMatch.rating + ratingGain).toFixed(1))), passes: playerMatch.passes + (action === 'compose' || action === 'hold' ? 6 : 2), goals: playerMatch.goals + (action === 'risk' && playerMatch.minute >= 45 ? 1 : 0), teamGoals: playerMatch.teamGoals + (action === 'attack' && playerMatch.minute >= 45 ? 1 : 0), stamina: Math.max(54, playerMatch.stamina - (isPositive ? 10 : 5)), choices: [...playerMatch.choices, action], lastEvent: event }
     if (playerMatchPhase === 'interview') {
       finishPlayerMatch(nextMatch)
@@ -498,8 +496,7 @@ function App() {
   }
 
   const handleMatchActionTimeout = () => {
-    setPlayerMatch((m) => m ? { ...m, stamina: Math.max(30, m.stamina - 8), opponentGoals: m.opponentGoals + 1, lastEvent: 'Too slow — you lost possession and the opponent counters.', rating: Math.max(4, Number((m.rating - 0.3).toFixed(1))) } : m)
-    setSimulationEvents((c) => [{ id: Date.now(), label: 'Missed decision', detail: 'Hesitation cost you. The opponent seized the moment.' }, ...c].slice(0, 8))
+    setPlayerMatch((m) => m ? { ...m, stamina: Math.max(30, m.stamina - 8), opponentGoals: m.opponentGoals + 1, lastEvent: 'Lost possession.', rating: Math.max(4, Number((m.rating - 0.3).toFixed(1))) } : m)
   }
 
   const advancePlayerMatch = () => {
@@ -508,7 +505,7 @@ function App() {
     if (playerMatchPhase === 'halftime') {
       setPlayerMatchPhase('live')
       setMatchActionTimer(8)
-      setPlayerMatch((m) => m ? { ...m, lastEvent: "Second half underway. You carry the coach's adjustment into the next phase." } : m)
+      setPlayerMatch((m) => m ? { ...m, lastEvent: 'Second half.' } : m)
     }
     if (playerMatchPhase === 'fulltime') setPlayerMatchPhase('interview')
   }
@@ -524,7 +521,7 @@ function App() {
     setDateIndex((current) => seasonEnds ? 0 : Math.min(current + 1, seasonFixtures.length - 1))
     setWeekNumber((current) => current >= 38 ? 1 : current + 1)
     if (seasonEnds) setSeasonNumber((current) => current + 1)
-    setSimulationEvents((current) => [{ id: Date.now(), label: 'Matchday report', detail: `${profile?.name} rated ${finalMatch.rating.toFixed(1)} in a ${result} result against ${finalMatch.opponent}.` }, ...current].slice(0, 8))
+    setSimulationEvents((current) => [{ id: Date.now(), label: 'Match complete', detail: `${finalMatch.rating.toFixed(1)} rating · ${result} vs ${finalMatch.opponent}` }, ...current].slice(0, 8))
     setPlayerMatch(null)
     setPlayerMatchPhase(null)
     setMatchActionTimer(0)
@@ -602,76 +599,90 @@ function App() {
 
   return (
     <div className="app-shell">
-      {/* Vertical icon sidebar */}
       <aside className="app-sidebar">
-        <div className="app-sidebar-top">
+        <div className="sb-brand">NS</div>
+        <div className="app-sidebar-top" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1, width: '100%' }}>
           {visibleNavItems.map((item) => (
             <button
               key={item.id}
-              className={`app-sidebar-icon${activeView === item.id ? ' active' : ''}`}
+              className={`sb-icon${activeView === item.id ? ' active' : ''}`}
               onClick={() => setActiveView(item.id)}
               title={item.label}
             >
               <Icon>{item.icon}</Icon>
-              <span className="sb-label">{item.label}</span>
-              {item.id === 'market' && <em>2</em>}
+              {item.id === 'market' && <span className="sb-badge">2</span>}
             </button>
           ))}
         </div>
-        <div className="sidebar-clock">
-          <span className={`time ${isClockRunning ? '' : 'paused'}`}>{isClockRunning ? clockLabel : '||'}</span>
-          <div className="speed-dots">
+        <div className="sb-clock">
+          <span className={`sb-time ${isClockRunning ? '' : 'paused'}`}>{isClockRunning ? clockLabel : '||'}</span>
+          <div className="sb-speed">
             <button className={simulationSpeed === 0 ? 'active' : ''} onClick={() => { setSimulationSpeed(0); setIsClockRunning(false) }} title="Pause" />
             <button className={simulationSpeed === 1 && isClockRunning ? 'active' : ''} onClick={() => { setSimulationSpeed(1); setIsClockRunning(true) }} title="1x" />
             <button className={simulationSpeed === 2 ? 'active' : ''} onClick={() => { setSimulationSpeed(2); setIsClockRunning(true) }} title="2x" />
             <button className={simulationSpeed === 20 ? 'active' : ''} onClick={() => { setSimulationSpeed(20); setIsClockRunning(true) }} title="20x" />
           </div>
         </div>
-        <div className="app-sidebar-bottom">
-          <button className="app-sidebar-icon" onClick={() => showToast(saveCareer() ? 'Saved' : 'Save failed')} title="Save">
-            <Icon>⌁</Icon><span className="sb-label">Save</span>
-          </button>
-        </div>
+        <button className="sb-icon" onClick={() => showToast(saveCareer() ? 'Saved' : 'Save failed')} title="Save">
+          <Icon>⌁</Icon>
+        </button>
       </aside>
 
       <main className="main-content">
-        {/* Slim top bar */}
         <div className="app-topbar">
-          <span className="save-indicator"><i />{careerMode === 'player' ? 'PLAYER' : 'MANAGER'} · {profile.clubShort}</span>
+          <span className="tb-pill"><i className="dot" />{careerMode === 'player' ? 'PLAYER' : 'MANAGER'} · {profile.clubShort}</span>
           {careerMode === 'player' && playerMatchPhase && (
-            <button className="match-alert" onClick={() => setActiveView('player')}>
-              <span className="dot" /> MATCHDAY
+            <button className="tb-pill alert" onClick={() => setActiveView('player')}>
+              <span className="dot" /> Matchday
             </button>
           )}
-          <div style={{ flex: 1 }} />
-          <button className="user-btn" onClick={() => setShowNotifications(!showNotifications)} style={{ position: 'relative' }}>
-            <div className="user-avatar" style={{ background: profile.primaryColor }}>
-              {profile.name.split(' ').map((p) => p[0]).join('').slice(0, 2) || 'JP'}
+          {savedAt && (
+            <span className="tb-pill" style={{ color: 'var(--text-dim)' }}>
+              <i className="dot" style={{ background: saveStatus === 'saving' ? 'var(--warn)' : 'var(--good)' }} />
+              {saveStatus === 'saving' ? 'Saving…' : 'Saved'}
+            </span>
+          )}
+          <div className="flex" />
+          <button className="tb-user" onClick={() => setShowNotifications(!showNotifications)}>
+            <div className="tb-avatar" style={{ background: profile.primaryColor, color: '#fff' }}>
+              {profile.name.split(' ').map((p) => p[0]).join('').slice(0, 2) || 'NP'}
             </div>
-            <b>{profile.name}</b>
+            <span>{profile.name}</span>
           </button>
           {showNotifications && (
-            <div className="notif-popover">
-              <h4>Inbox</h4>
-              <div className="notif-item">
-                <div className="notif-dot amber" />
-                <div><b>Board review due</b><p>Progress update needed.</p></div>
+            <div className="notif">
+              <h4>Notifications</h4>
+              <div className="notif-row">
+                <div className="dot" />
+                <div>
+                  <b>Week {weekNumber} · {clockLabel}</b>
+                  <small>Simulator running at {simulationSpeed}× speed</small>
+                </div>
               </div>
-              <div className="notif-item">
-                <div className="notif-dot cyan" />
-                <div><b>Scout report ready</b><p>New prospect matches your brief.</p></div>
+              <div className="notif-row">
+                <div className="dot warn" />
+                <div>
+                  <b>{transferApproaches.length} transfer approaches</b>
+                  <small>{transferApproaches.filter((a) => a.stage === 'approaching').length} new this week</small>
+                </div>
               </div>
-              <button onClick={() => setShowNotifications(false)}>Dismiss</button>
+              <div className="notif-row">
+                <div className="dot" />
+                <div>
+                  <b>Day {simDay} · Season {seasonNumber}</b>
+                  <small>Training, fitness and form updating</small>
+                </div>
+              </div>
             </div>
           )}
         </div>
-        <div className="page-wrap">
+        <div className="page stack-lg">
           {activeView === 'hub' && (careerMode === 'player' ? <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} /> : <HubView profile={profile} budget={budget} dateIndex={dateIndex} fixtureResults={fixtureResults} players={players} managerMatch={managerMatch} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} onFinishMatch={() => finishManagerMatch()} onSubPlayer={(outId, inId) => { setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p)); setManagerMatch((m) => m ? { ...m, events: [...m.events, `SUB: ${players.find((p) => p.id === inId)?.name ?? ''} replaces ${players.find((p) => p.id === outId)?.name ?? ''}`].slice(-8), playerPerformances: [...m.playerPerformances.filter((pp) => pp.id !== outId), { id: inId, rating: players.find((p) => p.id === inId)?.rating ?? 70 }] } : m); showToast('Substitution made') }} continueWeek={continueWeek} openModal={openModal} setActiveView={setActiveView} />)}
           {activeView === 'player' && <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />}
           {activeView === 'squad' && <SquadView players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} openModal={openModal} />}
           {activeView === 'transferHub' && <TransferHub prospects={prospects} shortlist={shortlist} transferList={transferList} loanList={loanList} blockedList={blockedList} budget={budget} transferComments={transferComments} transferReports={transferReports} onToggleShortlist={toggleShortlist} onMoveTab={movePlayerToList} onSendComment={sendTransferComment} onShowToast={showToast} />}
           {activeView === 'playerProfile' && <PlayerProfile player={selectedPlayer} setActiveView={setActiveView} onShowToast={showToast} />}
-          {activeView === 'teamManagement' && <TeamManagement players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} setActiveView={setActiveView} tactics={tactics} onSetTacticsView={() => setActiveView('tactics')} onSubPlayer={(outId, inId) => { setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p)); showToast('Substitution made') }} onShowToast={showToast} />}
+          {activeView === 'teamManagement' && <TeamManagement players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} setActiveView={setActiveView} onSubPlayer={(outId, inId) => { setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p)); showToast('Substitution made') }} onShowToast={showToast} />}
           {activeView === 'tactics' && <TacticsView players={players} tactics={tactics} onUpdateTactics={(t) => { setTactics(t); showToast(`Tactics set: ${t.formation} · ${t.mentality}`) }} setActiveView={setActiveView} onShowToast={showToast} />}
           {activeView === 'market' && <MarketView filteredProspects={filteredProspects} search={search} setSearch={setSearch} marketFilter={marketFilter} setMarketFilter={setMarketFilter} shortlist={shortlist} scouted={scouted} negotiations={negotiations} toggleShortlist={toggleShortlist} scoutProspect={scoutProspect} startNegotiation={startNegotiation} budget={budget} openModal={openModal} />}
           {activeView === 'academy' && <AcademyView openModal={openModal} setActiveView={setActiveView} />}
@@ -689,7 +700,7 @@ function App() {
 
       {toast && <div className="toast"><span className="toast-check">✓</span>{toast}</div>}
       {showTransferModal && activeTransferApproach && <TransferApproachModal approach={activeTransferApproach} profile={profile} onAccept={acceptClubTransfer} onDecline={declineApproach} onConsider={() => { setShowTransferModal(false); setActiveTransferApproach(null); setIsClockRunning(true); showToast(`You'll review ${activeTransferApproach.clubName}'s offer in your own time.`) }} onClose={() => { setShowTransferModal(false); setActiveTransferApproach(null); setIsClockRunning(true) }} />}
-      {isModalOpen && <div className="modal-backdrop" onClick={() => setIsModalOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" aria-label="Close" onClick={() => setIsModalOpen(false)}>×</button><span className="section-kicker">CAREER MODE</span><h2>{modalTitle}</h2><p>{pendingInvestment ? 'The board will review a €2.5M capital request for your transfer runway.' : 'This action is ready for your decision.'}</p><div className="modal-choices"><button className="primary-button" onClick={() => { if (pendingInvestment) { setBudget((current) => current + 2500000); setPendingInvestment(false); showToast('Board investment approved · €2.5M added') } else { showToast(`${modalTitle} confirmed`) } setIsModalOpen(false) }}>Confirm<Icon>→</Icon></button><button className="ghost-button" onClick={() => setIsModalOpen(false)}>Cancel</button></div></div></div>}
+      {isModalOpen && <div className="modal-backdrop" onClick={() => setIsModalOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" aria-label="Close" onClick={() => setIsModalOpen(false)}>×</button><div className="kicker">Confirmation</div><h2>{modalTitle}</h2><p>{pendingInvestment ? 'Submit a €2.5M board investment request for the transfer window.' : `Confirm: ${modalTitle}?`}</p><div className="modal-actions"><button className="btn btn-primary" onClick={() => { if (pendingInvestment) { setBudget((current) => current + 2500000); setPendingInvestment(false); showToast('Investment approved · +€2.5M') } else { showToast(`${modalTitle} confirmed`) } setIsModalOpen(false) }}>Confirm <Icon>→</Icon></button><button className="btn btn-ghost" onClick={() => setIsModalOpen(false)}>Cancel</button></div></div></div>}
     </div>
   )
 }

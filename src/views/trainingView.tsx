@@ -6,32 +6,107 @@ import { Icon } from '../utils'
 export function TrainingView({ profile, players, trainingEnergy, lastTrainingDay, simDay, doTrainingSession }: { profile: CareerProfile; players: Player[]; trainingEnergy: number; lastTrainingDay: number; simDay: number; doTrainingSession: (s: TrainingSession) => void }) {
   const myPlayer = players.find((p) => p.id === 900) ?? players[0]
   const skills = myPlayer.skills ?? { pace: 60, shooting: 60, passing: 60, dribbling: 60, physical: 60 }
-  const skillList: { key: keyof PlayerSkills; label: string; icon: string; color: string }[] = [
-    { key: 'pace', label: 'PACE', icon: '⚡', color: 'purple' },
-    { key: 'shooting', label: 'SHOOTING', icon: '◎', color: 'amber' },
-    { key: 'passing', label: 'PASSING', icon: '↗', color: 'cyan' },
-    { key: 'dribbling', label: 'DRIBBLING', icon: '◈', color: 'lime' },
-    { key: 'physical', label: 'PHYSICAL', icon: '▦', color: 'purple' },
+  const skillList: { key: keyof PlayerSkills; label: string; icon: string }[] = [
+    { key: 'pace', label: 'Pace', icon: '⚡' },
+    { key: 'shooting', label: 'Shooting', icon: '◎' },
+    { key: 'passing', label: 'Passing', icon: '↗' },
+    { key: 'dribbling', label: 'Dribbling', icon: '◈' },
+    { key: 'physical', label: 'Physical', icon: '▦' },
   ]
   const avgSkills = Math.round((skills.pace + skills.shooting + skills.passing + skills.dribbling + skills.physical) / 5)
   const canTrain = lastTrainingDay !== simDay && trainingEnergy >= 22
-  return <>
-    <PageHeader eyebrow={`TRAINING GROUND · DAY ${simDay}`} title="Training ground" description={`${profile.name} · ${profile.clubName} · Day ${simDay}`} action={<div className="training-energy-pill"><Icon>⚡</Icon><b>{trainingEnergy}%</b><small>Energy</small><div className="energy-track"><i style={{ width: `${trainingEnergy}%` }} /></div></div>} />
-    <div className="training-grid">
-      <section className="panel training-skills-panel">
-        <div className="panel-heading"><div><span className="section-kicker">PLAYER SKILLS</span><h3>{profile.name}</h3></div><strong className="training-avg">{avgSkills}<small>AVG</small></strong></div>
-        <div className="training-skill-list">{skillList.map((s) => <div key={s.key} className="training-skill-row"><div className="training-skill-icon" style={{ background: `var(--${s.color})`, opacity: .18 }}><Icon>{s.icon}</Icon></div><div className="training-skill-info"><span>{s.label}</span><b>{skills[s.key as keyof PlayerSkills]}</b><div className="training-skill-track"><i style={{ width: `${skills[s.key as keyof PlayerSkills]}%`, background: `var(--${s.color})` }} /></div></div></div>)}</div>
-      </section>
-      <section className="panel training-sessions-panel">
-        <div className="panel-heading"><div><span className="section-kicker">{canTrain ? 'AVAILABLE SESSIONS' : lastTrainingDay === simDay ? 'SESSION COMPLETE' : 'LOW ENERGY'}</span><h3>Today's drills</h3></div></div>
-        {trainingSessions.map((session) => <button key={session.id} className={`training-session-card ${!canTrain || trainingEnergy < session.energyCost ? 'disabled' : ''}`} onClick={() => doTrainingSession(session)} disabled={!canTrain || trainingEnergy < session.energyCost}>
-          <span className="training-session-icon"><Icon>{session.icon}</Icon></span>
-          <div className="training-session-info"><b>{session.label}</b><p>{session.description}</p></div>
-          <div className="training-session-meta"><span className={`difficulty ${session.energyCost > 30 ? 'high' : session.energyCost > 25 ? 'medium' : 'low'}`}>{session.skill.toUpperCase()}</span><small>−{session.energyCost} ⚡</small></div>
-        </button>)}
-        {!canTrain && <div className="empty-state"><h3>Rest & recover</h3><p>{lastTrainingDay === simDay ? 'Come back tomorrow for your next session.' : 'Your energy is too low. Rest overnight to recharge.'}</p></div>}
-      </section>
-    </div>
-  </>
-}
 
+  return (
+    <>
+      <PageHeader
+        eyebrow={`Training · Day ${simDay}`}
+        title="Training ground"
+        description={`${profile.name} · ${profile.clubName}`}
+        action={
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: 4, padding: 'var(--s-3) var(--s-4)',
+            border: '1px solid var(--line)', borderRadius: 'var(--r-sm)',
+            minWidth: 120,
+          }}>
+            <span className="kicker">Energy</span>
+            <b className="mono" style={{ fontSize: 'var(--t-lg)', fontWeight: 700 }}>{trainingEnergy}%</b>
+            <div className="bar thin"><i style={{ width: `${trainingEnergy}%`, background: trainingEnergy >= 50 ? 'var(--accent)' : 'var(--warn)' }} /></div>
+          </div>
+        }
+      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 0.85fr) minmax(0, 1.15fr)', gap: 'var(--s-5)' }}>
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <span className="kicker">Player skills</span>
+              <h3>{profile.name}</h3>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <b className="accent mono" style={{ fontSize: 'var(--t-3xl)', fontWeight: 800, lineHeight: 1 }}>{avgSkills}</b>
+              <span className="kicker" style={{ display: 'block' }}>Average</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-4)' }}>
+            {skillList.map((s) => (
+              <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
+                <span style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--surface-2)', display: 'grid', placeItems: 'center', fontSize: 16, color: 'var(--text-muted)', flexShrink: 0 }}>{s.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span className="kicker">{s.label}</span>
+                    <b className="mono" style={{ fontSize: 'var(--t-md)', fontWeight: 700 }}>{skills[s.key as keyof PlayerSkills]}</b>
+                  </div>
+                  <div className="bar"><i style={{ width: `${skills[s.key as keyof PlayerSkills]}%` }} /></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <span className="kicker">{canTrain ? 'Sessions available' : lastTrainingDay === simDay ? 'Session complete' : 'Low energy'}</span>
+              <h3>Today's drills</h3>
+            </div>
+          </div>
+          {trainingSessions.map((session) => {
+            const disabled = !canTrain || trainingEnergy < session.energyCost
+            return (
+              <button
+                key={session.id}
+                className="panel"
+                onClick={() => doTrainingSession(session)}
+                disabled={disabled}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 'var(--s-4)',
+                  padding: 'var(--s-4) var(--s-5)', marginTop: 'var(--s-3)',
+                  textAlign: 'left', cursor: disabled ? 'not-allowed' : 'pointer',
+                  opacity: disabled ? 0.5 : 1, transition: 'border-color 0.15s',
+                }}
+              >
+                <span style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--surface-2)', display: 'grid', placeItems: 'center', fontSize: 20, flexShrink: 0 }}>{session.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <b style={{ display: 'block', fontSize: 'var(--t-md)', fontWeight: 700 }}>{session.label}</b>
+                  <small className="muted" style={{ fontSize: 'var(--t-xs)', lineHeight: 1.5 }}>{session.description}</small>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span className="pill">{session.skill.toUpperCase()}</span>
+                  <small className="muted" style={{ display: 'block', fontSize: 'var(--t-xs)', marginTop: 6 }}>−{session.energyCost}%</small>
+                </div>
+              </button>
+            )
+          })}
+          {!canTrain && (
+            <div style={{ textAlign: 'center', padding: 'var(--s-6) 0', marginTop: 'var(--s-4)' }}>
+              <b style={{ display: 'block', fontSize: 'var(--t-md)', fontWeight: 700 }}>Rest & recover</b>
+              <p className="muted" style={{ marginTop: 6, fontSize: 'var(--t-sm)' }}>
+                {lastTrainingDay === simDay ? 'Come back tomorrow for your next session.' : 'Energy too low. Rest overnight to recharge.'}
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
+    </>
+  )
+}
