@@ -66,7 +66,7 @@ The compiled site is written to `dist/`.
 
 The repository is configured for a project site at:
 
-`https://mpeeer.github.io/Soccer-Carreer-Mode-/`
+`https://mpeeer.github.io/Northstar-FC/`
 
 Every push to `main` triggers `.github/workflows/deploy.yml`. The workflow installs dependencies, runs the production build, uploads `dist/` as a Pages artifact, and deploys it to GitHub Pages.
 
