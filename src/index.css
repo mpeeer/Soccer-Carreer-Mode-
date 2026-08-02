@@ -714,7 +714,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outl
 .landing-nav b { color: #e2e8f0; font: 600 14px 'Inter'; letter-spacing: .04em; }
 .landing-nav .ghost-button { margin-left: auto; }
 .landing-main { flex: 1; max-width: 960px; margin: 0 auto; padding: 80px 48px 60px; width: 100%; }
-.landing-hero { max-width: 620px; margin-bottom: 80px; }
+.landing-hero { max-width: 620px; margin-bottom: 80px; position: relative; }
+.landing-hero::before { content: ''; position: absolute; width: 500px; height: 500px; right: -200px; top: -160px; background: radial-gradient(circle, rgba(139,124,246,.12), transparent 60%); pointer-events: none; }
 .landing-hero .section-kicker { margin-bottom: 16px; display: block; }
 .landing-hero h1 { font: 700 clamp(36px, 5vw, 56px)/1.06 'Inter'; letter-spacing: -.025em; color: #f1f5f9; margin: 0 0 20px; }
 .landing-hero p { color: #94a3b8; font-size: 15px; line-height: 1.65; margin: 0; max-width: 540px; }
