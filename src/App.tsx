@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
 
-type View = 'hub' | 'player' | 'squad' | 'market' | 'academy' | 'club'
+type View = 'hub' | 'player' | 'squad' | 'market' | 'academy' | 'club' | 'calendar' | 'transfers' | 'training'
 type CareerMode = 'manager' | 'player'
 type MatchPhase = 'pre' | 'live' | 'halftime' | 'fulltime' | 'interview'
 type Position = 'GK' | 'CB' | 'LB' | 'RB' | 'DM' | 'CM' | 'AM' | 'LW' | 'RW' | 'ST'
+type TransferApproach = { id: string; clubName: string; clubShort: string; league: string; identity: string; storyline: string; primaryColor: string; secondaryColor: string; perks: string[]; risks: string[]; managerBudget: number; managerTrust: number; playerWage: number; playerRole: string; playerTraining: number; stage: 'approaching' | 'considering' | 'negotiating' | 'accepted' | 'declined'; arrivalDay: number; arrivalWeek: number; counterDemand: string }
+type PlayerSkills = { pace: number; shooting: number; passing: number; dribbling: number; physical: number }
+type TrainingSession = { id: string; label: string; skill: keyof PlayerSkills; description: string; energyCost: number; icon: string }
 
 type Player = {
   id: number
@@ -22,6 +25,7 @@ type Player = {
   role: string
   initials: string
   color: string
+  skills: PlayerSkills
 }
 
 type Fixture = {
@@ -139,6 +143,8 @@ type SavedCareer = {
   playerMatchPhase: MatchPhase | null
   playerMatch: PlayerMatch | null
   trainingProgress: number
+  trainingEnergy: number
+  lastTrainingDay: number
   rivalryScore: number
   managerTrust: number
   simulationEvents: SimulationEvent[]
@@ -212,7 +218,9 @@ function isSavedProfile(value: unknown): value is CareerProfile {
 function isSavedPlayer(value: unknown): value is Player {
   if (!value || typeof value !== 'object') return false
   const player = value as Partial<Player>
-  return Number.isFinite(player.id) && typeof player.name === 'string' && validPositions.includes(player.position as Position) && boundedNumber(player.rating, -1, 0, 99) === player.rating && boundedNumber(player.potential, -1, 0, 99) === player.potential && boundedNumber(player.age, -1, 15, 60) === player.age && boundedNumber(player.form, -1, 0, 100) === player.form && boundedNumber(player.morale, -1, 0, 100) === player.morale && boundedNumber(player.fitness, -1, 0, 100) === player.fitness && boundedNumber(player.value, -1, 0, 1000000000) === player.value && boundedNumber(player.wage, -1, 0, 1000000) === player.wage && boundedNumber(player.contract, -1, 0, 10) === player.contract && typeof player.role === 'string' && typeof player.initials === 'string' && typeof player.color === 'string' && /^#[0-9a-f]{6}$/i.test(player.color)
+  const skills = player.skills as Partial<PlayerSkills> | undefined
+  const validSkills = !skills || (typeof skills.pace === 'number' && typeof skills.shooting === 'number' && typeof skills.passing === 'number' && typeof skills.dribbling === 'number' && typeof skills.physical === 'number')
+  return Number.isFinite(player.id) && typeof player.name === 'string' && validPositions.includes(player.position as Position) && boundedNumber(player.rating, -1, 0, 99) === player.rating && boundedNumber(player.potential, -1, 0, 99) === player.potential && boundedNumber(player.age, -1, 15, 60) === player.age && boundedNumber(player.form, -1, 0, 100) === player.form && boundedNumber(player.morale, -1, 0, 100) === player.morale && boundedNumber(player.fitness, -1, 0, 100) === player.fitness && boundedNumber(player.value, -1, 0, 1000000000) === player.value && boundedNumber(player.wage, -1, 0, 1000000) === player.wage && boundedNumber(player.contract, -1, 0, 10) === player.contract && typeof player.role === 'string' && typeof player.initials === 'string' && typeof player.color === 'string' && /^#[0-9a-f]{6}$/i.test(player.color) && validSkills
 }
 
 function boundedNumber(value: unknown, fallback: number, min: number, max: number) {
@@ -240,7 +248,7 @@ function readSavedCareer(): (SavedCareer & { savedAt?: number }) | null {
     const profile = parsed.profile
     if (envelope?.version === 1 || !envelope) return null
     const migratedClubOffer = isSavedClubOffer(parsed.clubOffer) ? parsed.clubOffer : createLegacyClubOffer(profile)
-    const allowedViews = profile.mode === 'player' ? ['hub', 'player', 'squad', 'club'] : ['hub', 'squad', 'market', 'academy', 'club']
+    const allowedViews = profile.mode === 'player' ? ['hub', 'player', 'squad', 'club', 'calendar', 'transfers', 'training'] : ['hub', 'squad', 'market', 'academy', 'club', 'calendar', 'transfers']
     const activeView = typeof parsed.activeView === 'string' && allowedViews.includes(parsed.activeView) ? parsed.activeView as View : profile.mode === 'player' ? 'player' : 'hub'
     const fixtureResults = parsed.fixtureResults && typeof parsed.fixtureResults === 'object' ? Object.fromEntries(Object.entries(parsed.fixtureResults).filter(([key, value]) => /^\d+$/.test(key) && typeof value === 'string')) : {}
     let dateIndex = boundedNumber(parsed.dateIndex, 0, 0, seasonFixtures.length - 1)
@@ -276,6 +284,8 @@ function readSavedCareer(): (SavedCareer & { savedAt?: number }) | null {
       playerMatchPhase,
       playerMatch,
       trainingProgress: boundedNumber(parsed.trainingProgress, 42, 0, 100),
+      trainingEnergy: boundedNumber(parsed.trainingEnergy, 100, 0, 100),
+      lastTrainingDay: boundedNumber(parsed.lastTrainingDay, 0, 0, 28),
       rivalryScore: boundedNumber(parsed.rivalryScore, 48, 0, 100),
       managerTrust: boundedNumber(parsed.managerTrust, 74, 0, 100),
       simulationEvents: Array.isArray(parsed.simulationEvents) ? parsed.simulationEvents.filter((event): event is SimulationEvent => Boolean(event && typeof event.id === 'number' && typeof event.label === 'string' && typeof event.detail === 'string')).slice(0, 8) : [],
@@ -286,20 +296,32 @@ function readSavedCareer(): (SavedCareer & { savedAt?: number }) | null {
   }
 }
 
+function randomSkillsForPosition(pos: Position, baseRating: number): PlayerSkills {
+  const r = baseRating
+  return pos === 'GK' ? { pace: r - 12, shooting: r - 30, passing: r - 8, dribbling: r - 22, physical: r - 4 } :
+    pos === 'CB' ? { pace: r - 5, shooting: r - 22, passing: r - 10, dribbling: r - 18, physical: r } :
+    pos === 'LB' || pos === 'RB' ? { pace: r, shooting: r - 14, passing: r - 5, dribbling: r - 6, physical: r - 5 } :
+    pos === 'DM' ? { pace: r - 10, shooting: r - 14, passing: r - 2, dribbling: r - 8, physical: r - 2 } :
+    pos === 'CM' ? { pace: r - 8, shooting: r - 6, passing: r, dribbling: r - 4, physical: r - 5 } :
+    pos === 'AM' ? { pace: r - 4, shooting: r - 2, passing: r, dribbling: r, physical: r - 10 } :
+    pos === 'LW' || pos === 'RW' ? { pace: r, shooting: r - 5, passing: r - 5, dribbling: r, physical: r - 12 } :
+    { pace: r - 2, shooting: r, passing: r - 6, dribbling: r - 2, physical: r - 4 } // ST
+}
+
 const initialPlayers: Player[] = [
-  { id: 1, name: 'Milo Vardic', position: 'GK', rating: 78, potential: 80, age: 29, form: 76, morale: 87, fitness: 92, value: 18500000, wage: 42000, contract: 2, role: 'First team', initials: 'MV', color: '#f4a261' },
-  { id: 2, name: 'Eliot Van Doren', position: 'CB', rating: 81, potential: 84, age: 27, form: 84, morale: 91, fitness: 88, value: 32000000, wage: 56000, contract: 3, role: 'Crucial', initials: 'EV', color: '#58c4c6' },
-  { id: 3, name: 'Rayan Kessler', position: 'CB', rating: 76, potential: 82, age: 22, form: 79, morale: 81, fitness: 95, value: 16500000, wage: 24000, contract: 4, role: 'Rotation', initials: 'RK', color: '#8a7dff' },
-  { id: 4, name: 'Juno Marsetti', position: 'LB', rating: 80, potential: 85, age: 24, form: 88, morale: 89, fitness: 91, value: 28000000, wage: 38000, contract: 3, role: 'First team', initials: 'JM', color: '#f2c14e' },
-  { id: 5, name: 'Tomas Osei', position: 'RB', rating: 75, potential: 79, age: 26, form: 71, morale: 76, fitness: 79, value: 11000000, wage: 27000, contract: 1, role: 'Rotation', initials: 'TO', color: '#df6d86' },
-  { id: 6, name: 'Soren Halvik', position: 'DM', rating: 82, potential: 85, age: 25, form: 86, morale: 94, fitness: 90, value: 41000000, wage: 61000, contract: 4, role: 'Crucial', initials: 'SH', color: '#4e9ed4' },
-  { id: 7, name: 'Nico Bellori', position: 'CM', rating: 79, potential: 88, age: 21, form: 91, morale: 92, fitness: 87, value: 36500000, wage: 31000, contract: 5, role: 'First team', initials: 'NB', color: '#f07f5e' },
-  { id: 8, name: 'Arden Kova', position: 'CM', rating: 77, potential: 80, age: 28, form: 73, morale: 80, fitness: 93, value: 15000000, wage: 35000, contract: 2, role: 'Rotation', initials: 'AK', color: '#b893da' },
-  { id: 9, name: 'Lio Santoro', position: 'AM', rating: 84, potential: 89, age: 23, form: 95, morale: 96, fitness: 86, value: 59000000, wage: 77000, contract: 4, role: 'Crucial', initials: 'LS', color: '#e8b74c' },
-  { id: 10, name: 'Jae Min-Ro', position: 'LW', rating: 80, potential: 87, age: 22, form: 82, morale: 90, fitness: 89, value: 33000000, wage: 44000, contract: 3, role: 'First team', initials: 'JR', color: '#68b5a0' },
-  { id: 11, name: 'Erlon Hyland', position: 'ST', rating: 86, potential: 91, age: 25, form: 93, morale: 95, fitness: 94, value: 78000000, wage: 105000, contract: 4, role: 'Crucial', initials: 'EH', color: '#d96b63' },
-  { id: 12, name: 'Dario Venn', position: 'RW', rating: 74, potential: 83, age: 19, form: 77, morale: 84, fitness: 97, value: 12500000, wage: 17000, contract: 5, role: 'Prospect', initials: 'DV', color: '#77a9e8' },
-  { id: 13, name: 'Cal Rook', position: 'CB', rating: 70, potential: 78, age: 20, form: 68, morale: 73, fitness: 100, value: 6000000, wage: 11000, contract: 3, role: 'Prospect', initials: 'CR', color: '#798798' },
+  { id: 1, name: 'Milo Vardic', position: 'GK', rating: 78, potential: 80, age: 29, form: 76, morale: 87, fitness: 92, value: 18500000, wage: 42000, contract: 2, role: 'First team', initials: 'MV', color: '#f4a261', skills: randomSkillsForPosition('GK', 78) },
+  { id: 2, name: 'Eliot Van Doren', position: 'CB', rating: 81, potential: 84, age: 27, form: 84, morale: 91, fitness: 88, value: 32000000, wage: 56000, contract: 3, role: 'Crucial', initials: 'EV', color: '#58c4c6', skills: randomSkillsForPosition('CB', 81) },
+  { id: 3, name: 'Rayan Kessler', position: 'CB', rating: 76, potential: 82, age: 22, form: 79, morale: 81, fitness: 95, value: 16500000, wage: 24000, contract: 4, role: 'Rotation', initials: 'RK', color: '#8a7dff', skills: randomSkillsForPosition('CB', 76) },
+  { id: 4, name: 'Juno Marsetti', position: 'LB', rating: 80, potential: 85, age: 24, form: 88, morale: 89, fitness: 91, value: 28000000, wage: 38000, contract: 3, role: 'First team', initials: 'JM', color: '#f2c14e', skills: randomSkillsForPosition('LB', 80) },
+  { id: 5, name: 'Tomas Osei', position: 'RB', rating: 75, potential: 79, age: 26, form: 71, morale: 76, fitness: 79, value: 11000000, wage: 27000, contract: 1, role: 'Rotation', initials: 'TO', color: '#df6d86', skills: randomSkillsForPosition('RB', 75) },
+  { id: 6, name: 'Soren Halvik', position: 'DM', rating: 82, potential: 85, age: 25, form: 86, morale: 94, fitness: 90, value: 41000000, wage: 61000, contract: 4, role: 'Crucial', initials: 'SH', color: '#4e9ed4', skills: randomSkillsForPosition('DM', 82) },
+  { id: 7, name: 'Nico Bellori', position: 'CM', rating: 79, potential: 88, age: 21, form: 91, morale: 92, fitness: 87, value: 36500000, wage: 31000, contract: 5, role: 'First team', initials: 'NB', color: '#f07f5e', skills: randomSkillsForPosition('CM', 79) },
+  { id: 8, name: 'Arden Kova', position: 'CM', rating: 77, potential: 80, age: 28, form: 73, morale: 80, fitness: 93, value: 15000000, wage: 35000, contract: 2, role: 'Rotation', initials: 'AK', color: '#b893da', skills: randomSkillsForPosition('CM', 77) },
+  { id: 9, name: 'Lio Santoro', position: 'AM', rating: 84, potential: 89, age: 23, form: 95, morale: 96, fitness: 86, value: 59000000, wage: 77000, contract: 4, role: 'Crucial', initials: 'LS', color: '#e8b74c', skills: randomSkillsForPosition('AM', 84) },
+  { id: 10, name: 'Jae Min-Ro', position: 'LW', rating: 80, potential: 87, age: 22, form: 82, morale: 90, fitness: 89, value: 33000000, wage: 44000, contract: 3, role: 'First team', initials: 'JR', color: '#68b5a0', skills: randomSkillsForPosition('LW', 80) },
+  { id: 11, name: 'Erlon Hyland', position: 'ST', rating: 86, potential: 91, age: 25, form: 93, morale: 95, fitness: 94, value: 78000000, wage: 105000, contract: 4, role: 'Crucial', initials: 'EH', color: '#d96b63', skills: randomSkillsForPosition('ST', 86) },
+  { id: 12, name: 'Dario Venn', position: 'RW', rating: 74, potential: 83, age: 19, form: 77, morale: 84, fitness: 97, value: 12500000, wage: 17000, contract: 5, role: 'Prospect', initials: 'DV', color: '#77a9e8', skills: randomSkillsForPosition('RW', 74) },
+  { id: 13, name: 'Cal Rook', position: 'CB', rating: 70, potential: 78, age: 20, form: 68, morale: 73, fitness: 100, value: 6000000, wage: 11000, contract: 3, role: 'Prospect', initials: 'CR', color: '#798798', skills: randomSkillsForPosition('CB', 70) },
 ]
 
 const baseFixtures: Fixture[] = [
@@ -345,6 +367,21 @@ function createClubOffers(leaguePreference: string) {
   return shuffled.sort((a, b) => Number(b.league === leaguePreference) - Number(a.league === leaguePreference)).slice(0, 3)
 }
 
+const trainingSessions: TrainingSession[] = [
+  { id: 'sprint', label: 'Sprint drills', skill: 'pace', description: 'Interval runs and acceleration work on the training ground.', energyCost: 28, icon: '⚡' },
+  { id: 'finishing', label: 'Finishing practice', skill: 'shooting', description: 'One-touch finishes, volleys, and composed penalty work.', energyCost: 30, icon: '◎' },
+  { id: 'rondo', label: 'Rondo & distribution', skill: 'passing', description: 'Tight-space passing sequences and long-range distribution.', energyCost: 22, icon: '↗' },
+  { id: 'dribble', label: '1v1 duels', skill: 'dribbling', description: 'Close control through cones and competitive take-on drills.', energyCost: 26, icon: '◈' },
+  { id: 'strength', label: 'Strength & recovery', skill: 'physical', description: 'Gym block, core stability, and controlled recovery cycling.', energyCost: 34, icon: '▦' },
+]
+
+const transferClubPool: TransferApproach[] = [
+  { id: 'tf-dynamo', clubName: 'Dynamo 1896', clubShort: 'DYN', league: 'Continental League', identity: 'The continental contender', storyline: 'Dynamo 1896 have been tracking your progress for months. Their sporting director flew in personally. "We build dynasties, not just seasons."', primaryColor: '#c44d6e', secondaryColor: '#f7d08a', perks: ['Regular continental football', 'Top-tier training facilities', 'Vocal home support'], risks: ['Intense media pressure', 'High board expectations', 'Cold winter schedule'], managerBudget: 51000000, managerTrust: 71, playerWage: 8200, playerRole: 'First team', playerTraining: 68, stage: 'approaching', arrivalDay: 0, arrivalWeek: 0, counterDemand: '' },
+  { id: 'tf-ironbank', clubName: 'Ironbank FC', clubShort: 'IB', league: 'Premier Division', identity: 'The ambitious upstart', storyline: 'Ironbank are not subtle — their chairman sent a handwritten note and a number. "Money talks. We want yours to sing."', primaryColor: '#2e7d6a', secondaryColor: '#d4e8c2', perks: ['Competitive wage structure', 'Modern stadium project', 'Young, hungry squad'], risks: ['Unproven in big matches', 'Board meddling in transfers', 'Limited scouting network'], managerBudget: 68000000, managerTrust: 58, playerWage: 9600, playerRole: 'Crucial', playerTraining: 54, stage: 'approaching', arrivalDay: 0, arrivalWeek: 0, counterDemand: '' },
+  { id: 'tf-santiverde', clubName: 'Santiverde', clubShort: 'SV', league: 'Coastal Championship', identity: 'The lifestyle club', storyline: 'Santiverde pitch the weather, the city, and the vision. "You can win anywhere. Why not win where the sun sets on the sea?"', primaryColor: '#d4853e', secondaryColor: '#f0d4b8', perks: ['Player-friendly city lifestyle', 'Strong youth pipeline', 'Relaxed media environment'], risks: ['Lower league prestige', 'Smaller transfer budget', 'Fewer derby fixtures'], managerBudget: 34000000, managerTrust: 84, playerWage: 7500, playerRole: 'First team', playerTraining: 60, stage: 'approaching', arrivalDay: 0, arrivalWeek: 0, counterDemand: '' },
+  { id: 'tf-northcroft', clubName: 'Northcroft Athletic', clubShort: 'NA', league: 'Alpine League', identity: 'The old guard', storyline: 'Northcroft are a name that carries weight. Their captain wants you in the dressing room. "We have the history. You could be part of the next chapter."', primaryColor: '#3d5e8c', secondaryColor: '#c8d9f0', perks: ['Rich club heritage', 'Loyal fanbase', 'Proven development pathway'], risks: ['Aging squad core', 'Rebuilding phase', 'Remote location'], managerBudget: 42000000, managerTrust: 76, playerWage: 7000, playerRole: 'Rotation', playerTraining: 72, stage: 'approaching', arrivalDay: 0, arrivalWeek: 0, counterDemand: '' },
+]
+
 function createLegacyClubOffer(profile: CareerProfile): ClubOffer {
   return { id: 'legacy', clubName: profile.clubName, clubShort: profile.clubShort, league: profile.league, identity: 'Existing career', philosophy: 'Established setup', description: 'This career was created before the new club-offer system. Your original club has been preserved.', primaryColor: profile.primaryColor, secondaryColor: profile.secondaryColor, pros: ['Original career preserved', 'Existing squad retained'], cons: ['Legacy starting conditions', 'No offer reroll'], managerBudget: 48500000, managerTrust: 74, playerRating: 66, playerPotential: 86, playerWage: 6500, playerRole: 'Prospect', playerTraining: 42, managerResultBoost: 0, managerBudgetGrowth: 0, playerTrainingBonus: 0, playerTrustModifier: 0 }
 }
@@ -356,6 +393,8 @@ function profileFromOffer(onboarding: OnboardingSave, offer: ClubOffer): CareerP
 const navItems: { id: View; label: string; icon: string }[] = [
   { id: 'hub', label: 'Central', icon: '⌂' },
   { id: 'squad', label: 'Squad', icon: '♙' },
+  { id: 'calendar', label: 'Calendar', icon: '◷' },
+  { id: 'transfers', label: 'Transfers', icon: '↔' },
   { id: 'market', label: 'Market', icon: '↗' },
   { id: 'academy', label: 'Academy', icon: '✦' },
   { id: 'club', label: 'Club vision', icon: '◈' },
@@ -364,6 +403,9 @@ const navItems: { id: View; label: string; icon: string }[] = [
 const playerNavItems: { id: View; label: string; icon: string }[] = [
   { id: 'hub', label: 'Central', icon: '⌂' },
   { id: 'player', label: 'My player', icon: '♙' },
+  { id: 'calendar', label: 'Calendar', icon: '◷' },
+  { id: 'transfers', label: 'Transfers', icon: '↔' },
+  { id: 'training', label: 'Training', icon: '⚡' },
   { id: 'squad', label: 'Club team', icon: '◎' },
   { id: 'club', label: 'Club life', icon: '◈' },
 ]
@@ -384,7 +426,7 @@ function formatSavedTime(value: number | null) {
 
 function createCareerPlayer(profile: CareerProfile, offer?: ClubOffer | null): Player {
   const initials = profile.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NP'
-  return { id: 900, name: profile.name, position: profile.playerPosition, rating: offer?.playerRating ?? 66, potential: offer?.playerPotential ?? 86, age: 18, form: 72, morale: 82, fitness: 96, value: 2500000, wage: offer?.playerWage ?? 6500, contract: 4, role: offer?.playerRole ?? 'Prospect', initials, color: profile.primaryColor }
+  return { id: 900, name: profile.name, position: profile.playerPosition, rating: offer?.playerRating ?? 66, potential: offer?.playerPotential ?? 86, age: 18, form: 72, morale: 82, fitness: 96, value: 2500000, wage: offer?.playerWage ?? 6500, contract: 4, role: offer?.playerRole ?? 'Prospect', initials, color: profile.primaryColor, skills: randomSkillsForPosition(profile.playerPosition, offer?.playerRating ?? 66) }
 }
 
 function App() {
@@ -430,6 +472,7 @@ function App() {
   const [simDay, setSimDay] = useState(savedCareer?.simDay ?? 1)
   const [playerMatchPhase, setPlayerMatchPhase] = useState<MatchPhase | null>(savedCareer?.playerMatchPhase ?? null)
   const [playerMatch, setPlayerMatch] = useState<PlayerMatch | null>(savedCareer?.playerMatch ?? null)
+  const [matchActionTimer, setMatchActionTimer] = useState(0)
   const [trainingProgress, setTrainingProgress] = useState(savedCareer?.trainingProgress ?? 42)
   const [rivalryScore, setRivalryScore] = useState(savedCareer?.rivalryScore ?? 48)
   const [managerTrust, setManagerTrust] = useState(savedCareer?.managerTrust ?? 74)
@@ -437,6 +480,18 @@ function App() {
   const [introComplete, setIntroComplete] = useState(savedCareer?.introComplete ?? (restoredOnboardingProfile ? false : true))
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const [savedAt, setSavedAt] = useState<number | null>(savedCareer?.savedAt ?? null)
+  const [transferApproaches, setTransferApproaches] = useState<TransferApproach[]>(() => {
+    try {
+      const raw = window.localStorage.getItem('northstar-transfers')
+      if (!raw) return []
+      const parsed = JSON.parse(raw) as TransferApproach[]
+      return Array.isArray(parsed) && parsed.every((a) => typeof a?.id === 'string') ? parsed : []
+    } catch { return [] }
+  })
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [activeTransferApproach, setActiveTransferApproach] = useState<TransferApproach | null>(null)
+  const [trainingEnergy, setTrainingEnergy] = useState(savedCareer?.trainingEnergy ?? 100)
+  const [lastTrainingDay, setLastTrainingDay] = useState(savedCareer?.lastTrainingDay ?? 0)
   const processedDayRef = useRef(savedCareer?.simDay ?? 1)
   const previousMinuteRef = useRef(savedCareer?.simMinute ?? 8 * 60)
   const careerMode = profile?.mode ?? 'manager'
@@ -456,7 +511,9 @@ function App() {
   const saveCareer = useCallback(() => {
     if (!profile) return false
     const nextSavedAt = Date.now()
-    const career: SavedCareer = { profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents }
+    const career: SavedCareer = { profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, trainingEnergy, lastTrainingDay, rivalryScore, managerTrust, simulationEvents }
+    // Persist transfer approaches alongside the career (not in SavedCareer type to keep backward compat)
+    try { window.localStorage.setItem('northstar-transfers', JSON.stringify(transferApproaches)) } catch { /* non-critical */ }
     const envelope: SavedCareerEnvelope = { version: CURRENT_SAVE_VERSION, savedAt: nextSavedAt, career }
     try {
       window.localStorage.setItem(SAVE_KEY, JSON.stringify(envelope))
@@ -469,7 +526,7 @@ function App() {
       setSaveStatus('error')
       return false
     }
-  }, [profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents])
+  }, [profile, clubOffer, introComplete, seasonNumber, weekNumber, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, trainingEnergy, lastTrainingDay, rivalryScore, managerTrust, simulationEvents])
 
   useEffect(() => {
     if (!profile || !isClockRunning || simulationSpeed === 0 || playerMatchPhase) return
@@ -481,6 +538,39 @@ function App() {
     }, 1000)
     return () => window.clearInterval(timer)
   }, [profile, isClockRunning, simulationSpeed, playerMatchPhase])
+
+  // Auto-advance match clock during live play
+  useEffect(() => {
+    if (playerMatchPhase !== 'live' || !playerMatch || simulationSpeed === 0) return
+    const tick = window.setInterval(() => {
+      setPlayerMatch((m) => {
+        if (!m || m.minute >= 90) return m
+        const nextMinute = m.minute + 1
+        // Check for choice intervals (every ~10 min)
+        const intervals = [10, 20, 30, 40, 55, 65, 75, 85]
+        if (intervals.includes(nextMinute)) setMatchActionTimer(8)
+        // Phase transitions
+        if (nextMinute === 45) setPlayerMatchPhase('halftime')
+        if (nextMinute === 90) setPlayerMatchPhase('fulltime')
+        return { ...m, minute: nextMinute, stamina: Math.max(30, m.stamina - 1) }
+      })
+    }, 1000 / simulationSpeed)
+    return () => window.clearInterval(tick)
+  }, [playerMatchPhase, playerMatch, simulationSpeed])
+
+  // Countdown timer for match actions
+  useEffect(() => {
+    if (matchActionTimer <= 0 || !playerMatchPhase) return
+    const timer = window.setTimeout(() => {
+      if (matchActionTimer <= 1) {
+        handleMatchActionTimeout()
+        setMatchActionTimer(0)
+      } else {
+        setMatchActionTimer((t) => t - 1)
+      }
+    }, 1000)
+    return () => window.clearTimeout(timer)
+  }, [matchActionTimer, playerMatchPhase])
 
   useEffect(() => {
     if (simMinute < previousMinuteRef.current) setSimDay((day) => day >= 28 ? 1 : day + 1)
@@ -495,6 +585,8 @@ function App() {
       form: Math.min(99, Math.max(55, player.form + (player.id % 2 === 0 ? 1 : -1))),
       fitness: Math.min(100, player.fitness + (player.id % 3 === 0 ? 6 : 3)),
     })))
+    // Regenerate training energy overnight
+    setTrainingEnergy((e) => Math.min(100, e + 35))
     setTrainingProgress((currentProgress) => {
       const gain = profile.mode === 'player' ? Math.max(1, (clubOffer?.playerTraining ?? 42) / 7 + (clubOffer?.playerTrainingBonus ?? 0)) : 4 + Math.round((clubOffer?.managerTrust ?? 74) / 30)
       const completed = currentProgress + gain >= 100
@@ -528,7 +620,20 @@ function App() {
       if (seasonEnds) setSeasonNumber((current) => current + 1)
       setSimulationEvents((current) => [{ id: Date.now() + 2, label: 'Simulated fixture', detail: `${fixture.opponent} finished ${result}.` }, ...current].slice(0, 8))
     }
-  }, [profile, simDay, dateIndex, fixtureResults, players, playerMatchPhase, clubOffer, weekNumber])
+    // Random transfer approaches (every 3 days, 30% chance, max 3 active)
+    if (simDay % 3 === 0 && transferApproaches.length < 3 && Math.random() < 0.3) {
+      const available = transferClubPool.filter((club) => !transferApproaches.some((a) => a.id === club.id))
+      if (available.length > 0) {
+        const pick = available[Math.floor(Math.random() * available.length)]
+        const approach: TransferApproach = { ...pick, arrivalDay: simDay, arrivalWeek: weekNumber, stage: 'approaching', counterDemand: '' }
+        setTransferApproaches((current) => [...current, approach])
+        setActiveTransferApproach(approach)
+        setShowTransferModal(true)
+        setIsClockRunning(false)
+        setSimulationEvents((current) => [{ id: Date.now(), label: 'Transfer approach', detail: `${pick.clubName} has made an official approach.` }, ...current].slice(0, 8))
+      }
+    }
+  }, [profile, simDay, dateIndex, fixtureResults, players, playerMatchPhase, clubOffer, weekNumber, transferApproaches])
 
   useEffect(() => {
     if (!profile) return
@@ -583,6 +688,9 @@ function App() {
     setRivalryScore(48)
     setManagerTrust(nextProfile.mode === 'manager' ? nextOffer.managerTrust : 74)
     setSimulationEvents([])
+    setTransferApproaches([])
+    setTrainingEnergy(100)
+    setLastTrainingDay(0)
   }
 
   const resetCareer = () => {
@@ -618,6 +726,10 @@ function App() {
     setRivalryScore(48)
     setManagerTrust(74)
     setSimulationEvents([])
+    setShowTransferModal(false)
+    setActiveTransferApproach(null)
+    setTrainingEnergy(100)
+    setLastTrainingDay(0)
   }
 
   const completeIntroduction = () => {
@@ -632,9 +744,41 @@ function App() {
     try { window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify(persistedOnboarding)) } catch { /* save status appears after a club is accepted */ }
   }
 
+  const doTrainingSession = (session: TrainingSession) => {
+    if (trainingEnergy < session.energyCost || lastTrainingDay === simDay) {
+      showToast(lastTrainingDay === simDay ? 'You already trained today. Recover overnight.' : 'Not enough energy for this session.')
+      return
+    }
+    setTrainingEnergy((e) => Math.max(0, e - session.energyCost))
+    setLastTrainingDay(simDay)
+    const boost = Math.floor(Math.random() * 3) + 2 // 2-4 point boost
+    setPlayers((current) => current.map((p) => profile?.mode === 'player' && p.id === 900 ? { ...p, skills: { ...p.skills, [session.skill]: Math.min(99, (p.skills?.[session.skill] ?? 60) + boost) }, form: Math.min(99, p.form + 2), fitness: Math.min(100, p.fitness + 3) } : p))
+    showToast(`${session.label} complete · +${boost} ${session.skill}`)
+  }
+
   const showToast = (message: string) => {
     setToast(message)
     window.setTimeout(() => setToast(''), 3200)
+  }
+
+  const acceptClubTransfer = (approach: TransferApproach) => {
+    if (!profile || !clubOffer) return
+    const farewell = `"At ${profile.clubName}, the ${clubOffer.identity?.toLowerCase() ?? 'journey'} shaped everything. Now ${approach.clubName} calls." — ${profile.name}`
+    setTransferApproaches((current) => current.map((a) => a.id === approach.id ? { ...a, stage: 'accepted' } : a))
+    setProfile({ ...profile, clubName: approach.clubName, clubShort: approach.clubShort, league: approach.league, primaryColor: approach.primaryColor, secondaryColor: approach.secondaryColor })
+    setClubOffer({ ...clubOffer, clubName: approach.clubName, clubShort: approach.clubShort, league: approach.league, primaryColor: approach.primaryColor, secondaryColor: approach.secondaryColor, managerBudget: approach.managerBudget, managerTrust: approach.managerTrust, playerWage: approach.playerWage, playerRole: approach.playerRole, playerTraining: approach.playerTraining, identity: approach.identity })
+    if (profile.mode === 'player') setBudget(approach.managerBudget)
+    setShowTransferModal(false)
+    setActiveTransferApproach(null)
+    showToast(farewell)
+  }
+
+  const declineApproach = (approach: TransferApproach) => {
+    setTransferApproaches((current) => current.map((a) => a.id === approach.id ? { ...a, stage: 'declined' } : a))
+    setShowTransferModal(false)
+    setActiveTransferApproach(null)
+    setIsClockRunning(true)
+    showToast(`You declined ${approach.clubName}'s approach.`)
   }
 
   const beginPlayerMatch = () => {
@@ -653,23 +797,26 @@ function App() {
       finishPlayerMatch(nextMatch)
       return
     }
+    setMatchActionTimer(0)
     setPlayerMatch(nextMatch)
     if (playerMatchPhase === 'pre') setPlayerMatchPhase('live')
     // Keep the user in the half-time decision state until they explicitly start the second half.
   }
 
+  const handleMatchActionTimeout = () => {
+    setPlayerMatch((m) => m ? { ...m, stamina: Math.max(30, m.stamina - 8), opponentGoals: m.opponentGoals + 1, lastEvent: 'Too slow — you lost possession and the opponent counters.', rating: Math.max(4, Number((m.rating - 0.3).toFixed(1))) } : m)
+    setSimulationEvents((c) => [{ id: Date.now(), label: 'Missed decision', detail: 'Hesitation cost you. The opponent seized the moment.' }, ...c].slice(0, 8))
+  }
+
   const advancePlayerMatch = () => {
     if (!playerMatch) return
-    if (playerMatchPhase === 'pre') return beginPlayerMatch()
-    if (playerMatchPhase === 'live') {
-      setPlayerMatch((current) => current ? { ...current, minute: 45, lastEvent: 'Half-time. The manager wants one clear adjustment from you.' } : current)
-      setPlayerMatchPhase('halftime')
-    } else if (playerMatchPhase === 'halftime') {
-      setPlayerMatch((current) => current ? { ...current, minute: 90, teamGoals: Math.max(current.teamGoals, current.goals + 1), lastEvent: 'Full-time. The stadium gives you the final word.' } : current)
-      setPlayerMatchPhase('fulltime')
-    } else if (playerMatchPhase === 'fulltime') {
-      setPlayerMatchPhase('interview')
+    if (playerMatchPhase === 'pre') { setMatchActionTimer(8); return beginPlayerMatch() }
+    if (playerMatchPhase === 'halftime') {
+      setPlayerMatchPhase('live')
+      setMatchActionTimer(8)
+      setPlayerMatch((m) => m ? { ...m, lastEvent: 'Second half underway. You carry the coach\'s adjustment into the next phase.' } : m)
     }
+    if (playerMatchPhase === 'fulltime') setPlayerMatchPhase('interview')
   }
 
   const finishPlayerMatch = (finalMatch: PlayerMatch) => {
@@ -686,6 +833,8 @@ function App() {
     setSimulationEvents((current) => [{ id: Date.now(), label: 'Matchday report', detail: `${profile?.name} rated ${finalMatch.rating.toFixed(1)} in a ${result} result against ${finalMatch.opponent}.` }, ...current].slice(0, 8))
     setPlayerMatch(null)
     setPlayerMatchPhase(null)
+    setMatchActionTimer(0)
+    setSimulationSpeed(1)
     setIsClockRunning(true)
     showToast(`Matchday complete · performance ${finalMatch.rating.toFixed(1)}`)
   }
@@ -809,12 +958,18 @@ function App() {
         </header>
 
         <div className="page-wrap">
-          {activeView === 'hub' && (careerMode === 'player' ? <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} /> : <HubView profile={profile} budget={budget} dateIndex={dateIndex} fixtureResults={fixtureResults} continueWeek={continueWeek} openModal={openModal} setActiveView={setActiveView} />)}
-          {activeView === 'player' && <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />}
+          {activeView === 'hub' && (careerMode === 'player' ? <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} /> : <HubView profile={profile} budget={budget} dateIndex={dateIndex} fixtureResults={fixtureResults} continueWeek={continueWeek} openModal={openModal} setActiveView={setActiveView} />)}
+          {activeView === 'player' && <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />}
           {activeView === 'squad' && <SquadView players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} openModal={openModal} />}
           {activeView === 'market' && <MarketView filteredProspects={filteredProspects} search={search} setSearch={setSearch} marketFilter={marketFilter} setMarketFilter={setMarketFilter} shortlist={shortlist} scouted={scouted} negotiations={negotiations} toggleShortlist={toggleShortlist} scoutProspect={scoutProspect} startNegotiation={startNegotiation} budget={budget} openModal={openModal} />}
           {activeView === 'academy' && <AcademyView openModal={openModal} setActiveView={setActiveView} />}
           {activeView === 'club' && (careerMode === 'player' ? <PlayerClubView profile={profile} player={selectedPlayer} openModal={openModal} /> : <ClubView budget={budget} requestInvestment={requestInvestment} openModal={openModal} />)}
+          {activeView === 'calendar' && <CalendarView profile={profile} dateIndex={dateIndex} fixtureResults={fixtureResults} simDay={simDay} weekNumber={weekNumber} seasonNumber={seasonNumber} />}
+          {activeView === 'transfers' && <TransferOffersView profile={profile} approaches={transferApproaches} clubOffer={clubOffer} onConsider={(a) => { setActiveTransferApproach(a); setShowTransferModal(true) }} onAccept={(a) => acceptClubTransfer(a)} onDecline={(a) => declineApproach(a)}          onCounter={(a, demand) => {
+            setTransferApproaches((c) => c.map((x) => x.id === a.id ? { ...x, stage: 'negotiating', counterDemand: demand, managerTrust: Math.min(100, x.managerTrust + 10), playerWage: Math.round(x.playerWage * 1.12), managerBudget: Math.round(x.managerBudget * 1.08) } : x))
+            showToast(`Counter-offer submitted. ${a.clubName}'s offer improved.`)
+          }} />}
+          {activeView === 'training' && <TrainingView profile={profile} players={players} trainingEnergy={trainingEnergy} lastTrainingDay={lastTrainingDay} simDay={simDay} doTrainingSession={doTrainingSession} />}
         </div>
       </main>
 
@@ -823,6 +978,7 @@ function App() {
       </nav>
 
       {toast && <div className="toast"><span className="toast-check">✓</span>{toast}</div>}
+      {showTransferModal && activeTransferApproach && <TransferApproachModal approach={activeTransferApproach} profile={profile} onAccept={acceptClubTransfer} onDecline={declineApproach} onConsider={() => { setShowTransferModal(false); setActiveTransferApproach(null); setIsClockRunning(true); showToast(`You'll review ${activeTransferApproach.clubName}'s offer in your own time.`) }} onClose={() => { setShowTransferModal(false); setActiveTransferApproach(null); setIsClockRunning(true) }} />}
       {isModalOpen && <div className="modal-backdrop" onClick={() => setIsModalOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" aria-label="Close dialog" onClick={() => setIsModalOpen(false)}>×</button><span className="section-kicker">NORTHSTAR DESK</span><h2>{modalTitle}</h2><p>{pendingInvestment ? 'The board will review a €2.5M capital request for your transfer runway. Confirm to apply the investment to club finances.' : 'This action is ready for your decision. Confirm to continue and keep your career moving.'}</p><div className="modal-choices"><button className="primary-button" onClick={() => { if (pendingInvestment) { setBudget((current) => current + 2500000); setPendingInvestment(false); showToast('Board investment approved · €2.5M added') } else { showToast(`${modalTitle} confirmed`) } setIsModalOpen(false) }}>Confirm action <Icon>→</Icon></button><button className="ghost-button" onClick={() => setIsModalOpen(false)}>Cancel</button></div></div></div>}
     </div>
   )
@@ -853,14 +1009,49 @@ function SetupView({ onComplete }: { onComplete: (onboarding: OnboardingSave) =>
   return <div className="setup-shell"><div className="setup-orbit setup-orbit-one" /><div className="setup-orbit setup-orbit-two" /><header className="setup-brand"><div className="brand-mark">N<span>+</span></div><div><b>NORTHSTAR</b><small>CAREER MODE</small></div></header><main className="setup-card"><div className="setup-intro"><span className="live-pill"><i /> NEW CAREER</span><span className="section-kicker">SEASON 01 · THE FIRST DECISION</span><h1>Take the<br /><em>touchline.</em></h1><p>Set your role, name your club, and make the first call of the season.</p></div><form onSubmit={submit}><div className="mode-toggle"><button type="button" className={mode === 'manager' ? 'active' : ''} onClick={() => setMode('manager')}><span className="setup-option-icon">◈</span><span><b>Manager Career</b><small>Run the club. Shape the squad.</small></span><i>✓</i></button><button type="button" className={mode === 'player' ? 'active' : ''} onClick={() => setMode('player')}><span className="setup-option-icon">♙</span><span><b>Player Career</b><small>Become the name on the shirt.</small></span><i>✓</i></button></div><div className="setup-grid"><label className="setup-field"><span>{mode === 'manager' ? 'MANAGER NAME' : 'PLAYER NAME'}</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder={mode === 'manager' ? 'Your manager name' : 'Your player name'} maxLength={28} /></label><div className="setup-field setup-field-note"><span>CLUB APPOINTMENT</span><small>Three unique offers will be generated after setup. Each club has its own pressure, resources, and pathway.</small></div><label className="setup-field"><span>LEAGUE</span><select value={league} onChange={(event) => setLeague(event.target.value)}><option>Premier Division</option><option>Continental League</option><option>Coastal Championship</option><option>Alpine League</option></select></label>{mode === 'player' && <label className="setup-field"><span>STARTING POSITION</span><select value={playerPosition} onChange={(event) => setPlayerPosition(event.target.value as Position)}>{(['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST'] as Position[]).map((position) => <option key={position}>{position}</option>)}</select></label>}<label className="setup-field"><span>CAREER DIFFICULTY</span><select value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option>Authentic</option><option>Competitive</option><option>Story driven</option></select></label></div><div className="club-customizer"><div><span className="setup-field-label">FIRST APPOINTMENT</span><small>Review the board brief before you accept a club.</small></div><div className="setup-option-icon">✦</div></div><button className="primary-button setup-submit" type="submit">View club offers <Icon>→</Icon></button></form><div className="setup-footer"><span>All career data is saved locally in this browser.</span><span>Fictional football universe · Season 1 kickoff</span></div></main></div>
 }
 
-function PlayerHubView({ profile, player, clockLabel, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents, onAdvanceMatch, onMatchAction, openModal, setActiveView }: { profile: CareerProfile; player: Player; clockLabel: string; simDay: number; playerMatchPhase: MatchPhase | null; playerMatch: PlayerMatch | null; trainingProgress: number; rivalryScore: number; managerTrust: number; simulationEvents: SimulationEvent[]; onAdvanceMatch: () => void; onMatchAction: (action: 'attack' | 'compose' | 'conserve' | 'press' | 'hold' | 'risk' | 'encourage' | 'humble') => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
-  return <><PageHeader eyebrow={`PLAYER CAREER · AUG ${simDay}, 2026 · ${profile.league.toUpperCase()}`} title="Earn your next appearance." description={`${profile.name} is entering a defining week at ${profile.clubName}. Training, selection, and matchday decisions set the tone.`} action={<button className="primary-button continue-button" onClick={() => openModal('Next match preparation')}><span className="pulse-ring" />Matchday focus <Icon>→</Icon></button>} /><div className="player-hero-grid"><section className="player-hero panel"><div className="player-hero-bg" /><div className="player-hero-content"><div className="hero-topline"><span className="live-pill"><i /> PLAYER CAREER</span><span className="muted-text">{profile.clubName.toUpperCase()} · {profile.playerPosition}</span></div><h2>Own your<br /><em>matchday.</em></h2><p>Earn your place, handle the pressure, and turn good sessions into starts.</p><div className="player-hero-actions"><button className="light-button" onClick={() => openModal('Training plan')}>Train today <Icon>→</Icon></button><button className="hero-text-button" onClick={() => openModal('Player social feed')}>Open social feed <Icon>↗</Icon></button></div></div><div className="player-hero-rating"><span>OVR</span><strong>{player.rating}</strong><small>+2 this season</small></div></section><MatchdayPanel profile={profile} phase={playerMatchPhase} match={playerMatch} clockLabel={clockLabel} simDay={simDay} onAdvance={onAdvanceMatch} onAction={onMatchAction} openModal={openModal} /></div><div className="player-metric-row"><Metric label="PLAYER RATING" value={String(player.rating)} trend="+2 this season" icon="✦" accent="purple" /><Metric label="MATCH FITNESS" value={`${player.fitness}%`} trend="Peak readiness" icon="⌁" accent="cyan" /><Metric label="MANAGER TRUST" value={`${managerTrust}%`} trend="Live relationship" icon="◎" accent="lime" /><Metric label="RIVALRY" value={`${rivalryScore}`} trend="Competitive edge" icon="⚡" accent="amber" /></div><div className="player-lower-grid"><section className="panel player-progress-panel"><div className="panel-heading"><div><span className="section-kicker">PERSONAL DEVELOPMENT</span><h3>Build the complete player</h3></div><button className="text-link" onClick={() => openModal('Full development plan')}>View plan <Icon>→</Icon></button></div><div className="player-progress-profile"><div className="player-profile-avatar" style={{ background: `linear-gradient(135deg, ${profile.primaryColor}, ${profile.secondaryColor})` }}>{profile.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</div><div><b>{profile.name}</b><span>{profile.playerPosition} · {profile.clubName}</span><div className="tag-row"><span>Playmaker</span><span>Early breakthrough</span></div></div><strong>{player.potential}<small>POTENTIAL</small></strong></div><div className="development-list"><DynamicBar label="Technical" value={72} color="purple" /><DynamicBar label="Physical" value={64} color="cyan" /><DynamicBar label="Mental" value={78} color="lime" /></div><div className="training-progress-label"><span>Next training milestone</span><b>{trainingProgress}%</b></div><div className="training-progress-track"><i style={{ width: `${trainingProgress}%` }} /></div></section><section className="panel player-briefing"><div className="panel-heading"><div><span className="section-kicker">WEEKLY BRIEFING</span><h3>Next up</h3></div><button className="more-button">•••</button></div><div className="brief-item"><div className="brief-icon purple">♙</div><div><b>Training objective</b><p>Complete 2 finishing sessions</p></div><span className="brief-time">2 / 3</span></div><div className="brief-item"><div className="brief-icon amber">⚡</div><div><b>Rivalry with Rayan Kessler</b><p>Beat his rating in next 5 matches</p></div><span className="brief-time">01–00</span></div><div className="brief-item"><div className="brief-icon cyan">✦</div><div><b>Manager conversation</b><p>Discuss your first-team role</p></div><span className="brief-time">NEW</span></div>{simulationEvents.slice(0, 2).map((event) => <div className="brief-item" key={event.id}><div className="brief-icon purple">◷</div><div><b>{event.label}</b><p>{event.detail}</p></div><span className="brief-time">LIVE</span></div>)}<button className="text-link" onClick={() => setActiveView('squad')}>See club team <Icon>→</Icon></button></section></div></>
+function PlayerHubView({ profile, player, clockLabel, simDay, playerMatchPhase, playerMatch, actionTimer, matchSpeed, onSetSpeed, trainingProgress, rivalryScore, managerTrust, simulationEvents, onAdvanceMatch, onMatchAction, openModal, setActiveView }: { profile: CareerProfile; player: Player; clockLabel: string; simDay: number; playerMatchPhase: MatchPhase | null; playerMatch: PlayerMatch | null; actionTimer: number; matchSpeed: number; onSetSpeed: (s: number) => void; trainingProgress: number; rivalryScore: number; managerTrust: number; simulationEvents: SimulationEvent[]; onAdvanceMatch: () => void; onMatchAction: (action: 'attack' | 'compose' | 'conserve' | 'press' | 'hold' | 'risk' | 'encourage' | 'humble') => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
+  return <><PageHeader eyebrow={`PLAYER CAREER · AUG ${simDay}, 2026 · ${profile.league.toUpperCase()}`} title="Earn your next appearance." description={`${profile.name} is entering a defining week at ${profile.clubName}. Training, selection, and matchday decisions set the tone.`} action={<button className="primary-button continue-button" onClick={() => openModal('Next match preparation')}><span className="pulse-ring" />Matchday focus <Icon>→</Icon></button>} /><div className="player-hero-grid"><section className="player-hero panel"><div className="player-hero-bg" /><div className="player-hero-content"><div className="hero-topline"><span className="live-pill"><i /> PLAYER CAREER</span><span className="muted-text">{profile.clubName.toUpperCase()} · {profile.playerPosition}</span></div><h2>Own your<br /><em>matchday.</em></h2><p>Earn your place, handle the pressure, and turn good sessions into starts.</p><div className="player-hero-actions"><button className="light-button" onClick={() => openModal('Training plan')}>Train today <Icon>→</Icon></button><button className="hero-text-button" onClick={() => openModal('Player social feed')}>Open social feed <Icon>↗</Icon></button></div></div><div className="player-hero-rating"><span>OVR</span><strong>{player.rating}</strong><small>+2 this season</small></div></section><MatchdayPanel profile={profile} phase={playerMatchPhase} match={playerMatch} clockLabel={clockLabel} simDay={simDay} actionTimer={actionTimer} matchSpeed={matchSpeed} onSetSpeed={onSetSpeed} onAdvance={onAdvanceMatch} onAction={onMatchAction} openModal={openModal} /></div><div className="player-metric-row"><Metric label="PLAYER RATING" value={String(player.rating)} trend="+2 this season" icon="✦" accent="purple" /><Metric label="MATCH FITNESS" value={`${player.fitness}%`} trend="Peak readiness" icon="⌁" accent="cyan" /><Metric label="MANAGER TRUST" value={`${managerTrust}%`} trend="Live relationship" icon="◎" accent="lime" /><Metric label="RIVALRY" value={`${rivalryScore}`} trend="Competitive edge" icon="⚡" accent="amber" /></div><div className="player-lower-grid"><section className="panel player-progress-panel"><div className="panel-heading"><div><span className="section-kicker">PERSONAL DEVELOPMENT</span><h3>Build the complete player</h3></div><button className="text-link" onClick={() => openModal('Full development plan')}>View plan <Icon>→</Icon></button></div><div className="player-progress-profile"><div className="player-profile-avatar" style={{ background: `linear-gradient(135deg, ${profile.primaryColor}, ${profile.secondaryColor})` }}>{profile.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</div><div><b>{profile.name}</b><span>{profile.playerPosition} · {profile.clubName}</span><div className="tag-row"><span>Playmaker</span><span>Early breakthrough</span></div></div><strong>{player.potential}<small>POTENTIAL</small></strong></div><div className="development-list"><DynamicBar label="Technical" value={72} color="purple" /><DynamicBar label="Physical" value={64} color="cyan" /><DynamicBar label="Mental" value={78} color="lime" /></div><div className="training-progress-label"><span>Next training milestone</span><b>{trainingProgress}%</b></div><div className="training-progress-track"><i style={{ width: `${trainingProgress}%` }} /></div></section><section className="panel player-briefing"><div className="panel-heading"><div><span className="section-kicker">WEEKLY BRIEFING</span><h3>Next up</h3></div><button className="more-button">•••</button></div><div className="brief-item"><div className="brief-icon purple">♙</div><div><b>Training objective</b><p>Complete 2 finishing sessions</p></div><span className="brief-time">2 / 3</span></div><div className="brief-item"><div className="brief-icon amber">⚡</div><div><b>Rivalry with Rayan Kessler</b><p>Beat his rating in next 5 matches</p></div><span className="brief-time">01–00</span></div><div className="brief-item"><div className="brief-icon cyan">✦</div><div><b>Manager conversation</b><p>Discuss your first-team role</p></div><span className="brief-time">NEW</span></div>{simulationEvents.slice(0, 2).map((event) => <div className="brief-item" key={event.id}><div className="brief-icon purple">◷</div><div><b>{event.label}</b><p>{event.detail}</p></div><span className="brief-time">LIVE</span></div>)}<button className="text-link" onClick={() => setActiveView('squad')}>See club team <Icon>→</Icon></button></section></div></>
 }
 
-function MatchdayPanel({ profile, phase, match, clockLabel, simDay, onAdvance, onAction, openModal }: { profile: CareerProfile; phase: MatchPhase | null; match: PlayerMatch | null; clockLabel: string; simDay: number; onAdvance: () => void; onAction: (action: 'attack' | 'compose' | 'conserve' | 'press' | 'hold' | 'risk' | 'encourage' | 'humble') => void; openModal: (title: string) => void }) {
-  const phaseLabel = phase === 'pre' ? 'TEAM TALK' : phase === 'live' ? 'LIVE MATCH' : phase === 'halftime' ? 'HALF-TIME' : phase === 'fulltime' ? 'FULL-TIME' : phase === 'interview' ? 'POST-MATCH' : 'NEXT APPEARANCE'
-  const advanceLabel = phase === 'pre' ? 'Enter match' : phase === 'live' ? 'Play to half-time' : phase === 'halftime' ? 'Play second half' : phase === 'fulltime' ? 'Go to interview' : 'Finish report'
-  return <section className={`panel player-next-match matchday-panel ${phase ? 'matchday-active' : ''}`}><div className="panel-heading"><span className="section-kicker">{phaseLabel}</span><span className="clock-mini">{phase ? `${match?.minute ?? 0}'` : clockLabel}</span></div>{!phase && <><div className="match-date">SAT, AUG {simDay + 5} <span>· IN 5 DAYS</span></div><div className="player-matchup"><div className="club-crest" style={{ background: profile.primaryColor, color: '#172219' }}>{profile.clubShort}</div><div className="versus-copy"><strong>VS</strong><span>LEAGUE FIXTURE</span></div><div className="opponent-crest" style={{ background: '#e96a59' }}>RU</div></div><div className="match-names"><b>{profile.clubName}</b><b>Redhaven United</b></div><div className="match-location"><Icon>⌖</Icon> Riverside Ground · Away<span className="difficulty medium">MEDIUM TEST</span></div><button className="outline-button full-button" onClick={() => openModal('Matchday role')}>View expected role <Icon>→</Icon></button></>}{phase && match && <><div className="match-scoreboard"><div><span>{profile.clubShort}</span><strong>{match.teamGoals}</strong></div><div className="score-divider">—</div><div><span>{match.opponentShort}</span><strong>{match.opponentGoals}</strong></div></div><div className="matchday-status"><span>PERFORMANCE <b>{match.rating.toFixed(1)}</b></span><span>STAMINA <b>{Math.round(match.stamina)}%</b></span><span>PASSING <b>{match.passes}</b></span></div><p className="matchday-event">{match.lastEvent}</p>{(phase === 'pre' || phase === 'halftime') && <div className="match-choice-grid"><button className="match-choice" onClick={() => onAction('attack')}><b>{phase === 'pre' ? 'Attack the space' : 'Raise the tempo'}</b><small>Positive impact · higher stamina cost</small></button><button className="match-choice" onClick={() => onAction('compose')}><b>Control the game</b><small>Build rhythm · safe performance gain</small></button></div>}{phase === 'live' && <div className="match-choice-grid"><button className="match-choice" onClick={() => onAction('press')}><b>Press the next trigger</b><small>Win the duel and lift the rating</small></button><button className="match-choice" onClick={() => onAction('hold')}><b>Hold your shape</b><small>Protect stamina and stay available</small></button></div>}{phase === 'fulltime' && <div className="match-choice-grid"><button className="match-choice" onClick={() => onAction('risk')}><b>Talk about the big moment</b><small>Own the spotlight after full-time</small></button><button className="match-choice" onClick={() => onAction('humble')}><b>Credit the team</b><small>Build trust with the dressing room</small></button></div>}{phase === 'interview' && <div className="match-choice-grid"><button className="match-choice" onClick={() => onAction('encourage')}><b>Back your teammates</b><small>Build manager trust and dressing-room respect</small></button><button className="match-choice" onClick={() => onAction('humble')}><b>Keep it about the group</b><small>Protect morale and stay grounded</small></button></div>}{phase !== 'interview' && <button className="primary-button full-button" onClick={onAdvance}>{advanceLabel} <Icon>→</Icon></button>}</>}</section>
+function MatchdayPanel({ profile, phase, match, clockLabel, simDay, actionTimer, matchSpeed, onSetSpeed, onAdvance, onAction, openModal }: { profile: CareerProfile; phase: MatchPhase | null; match: PlayerMatch | null; clockLabel: string; simDay: number; actionTimer: number; matchSpeed: number; onSetSpeed: (s: number) => void; onAdvance: () => void; onAction: (action: 'attack' | 'compose' | 'conserve' | 'press' | 'hold' | 'risk' | 'encourage' | 'humble') => void; openModal: (title: string) => void }) {
+  const phaseLabel = phase === 'pre' ? 'TEAM TALK' : phase === 'live' ? `${match?.minute ?? 0}'` : phase === 'halftime' ? 'HALF-TIME' : phase === 'fulltime' ? 'FULL-TIME' : phase === 'interview' ? 'POST-MATCH' : 'NEXT APPEARANCE'
+  const advanceLabel = phase === 'pre' ? 'Enter match' : phase === 'halftime' ? 'Start second half' : phase === 'fulltime' ? 'Go to interview' : 'Finish report'
+  const inChoicePoint = actionTimer > 0 && (phase === 'live' || phase === 'pre' || phase === 'halftime')
+  const matchNarrative = phase === 'pre' ? 'The tunnel is quiet. Studs echo on concrete. Your name is in the starting XI — now own it.'
+    : phase === 'live' && match && match.minute < 15 ? 'Early feeling-out phase. The opposition is pressing in a mid-block. Space behind the full-back is there if you want it.'
+    : phase === 'live' && match && match.minute < 30 ? 'The game is opening up. Midfield duels are becoming decisive. Your movement off the ball can unlock the next chance.'
+    : phase === 'live' && match && match.minute < 45 ? 'Approaching half-time. Legs are heavy, minds are sharper. One moment of quality can shift the scoreline before the whistle.'
+    : phase === 'halftime' ? 'The manager points at the board. One tactical adjustment. The next 45 minutes are yours to define.'
+    : phase === 'live' && match && match.minute < 65 ? 'Second half intensity. The opponent is growing into the game. Your pressing triggers are crucial now.'
+    : phase === 'live' && match && match.minute < 80 ? 'Final quarter. Fatigue is real but so is adrenaline. Every decision carries weight.'
+    : phase === 'live' ? 'Closing stages. The crowd is on its feet. One last push.'
+    : phase === 'fulltime' ? 'Full-time. The stadium gives you the final word.'
+    : phase === 'interview' ? 'Cameras and microphones. The media wants your reaction.'
+    : 'Your next appearance is approaching.'
+  const getLiveChoices = (): { action: 'attack' | 'compose' | 'conserve' | 'press' | 'hold' | 'risk' | 'encourage' | 'humble'; label: string; sub: string }[] => {
+    if (phase === 'pre') return [{ action: 'attack', label: 'Set the tone early', sub: 'Aggressive start · high energy cost' }, { action: 'compose', label: 'Feel the game out', sub: 'Patient approach · safer rating' }]
+    if (phase === 'halftime') return [{ action: 'attack', label: 'Raise the tempo', sub: 'Push forward · risk + reward' }, { action: 'hold', label: 'Stay compact', sub: 'Protect shape · conserve energy' }]
+    if (phase === 'fulltime' || phase === 'interview') return [{ action: 'encourage', label: 'Praise the team', sub: 'Build dressing-room morale' }, { action: 'humble', label: 'Stay grounded', sub: 'Protect your reputation' }]
+    const m = match?.minute ?? 0
+    if (m < 25) return [{ action: 'press', label: 'Press the full-back', sub: 'Win possession high · stamina cost' }, { action: 'compose', label: 'Keep it simple', sub: 'Short passes · build rhythm' }, { action: 'risk', label: 'Play the through ball', sub: 'High risk · chance creation' }]
+    if (m < 50) return [{ action: 'attack', label: 'Run into the channel', sub: 'Stretch the defence · energy drain' }, { action: 'hold', label: 'Hold position', sub: 'Stay available · safe option' }, { action: 'risk', label: 'Take the shot', sub: 'Test the keeper · rating boost' }]
+    if (m < 70) return [{ action: 'press', label: 'Track back & tackle', sub: 'Defensive shift · team player' }, { action: 'compose', label: 'Switch the play', sub: 'Open up the weak side' }, { action: 'attack', label: 'Drive into the box', sub: 'Direct run · goal threat' }]
+    return [{ action: 'risk', label: 'Go for the winner', sub: 'Everything on the line' }, { action: 'hold', label: 'Secure the result', sub: 'Game management · safe' }, { action: 'press', label: 'Win the decisive duel', sub: 'One last effort · high cost' }]
+  }
+  const liveChoices = getLiveChoices()
+  return <section className={`panel player-next-match matchday-panel ${phase ? 'matchday-active' : ''}`}>
+      <div className="panel-heading"><span className="section-kicker">{phase === 'live' ? 'LIVE MATCH' : phase === 'pre' ? 'TEAM TALK' : phase === 'halftime' ? 'HALF-TIME' : phase === 'fulltime' ? 'FULL-TIME' : phase === 'interview' ? 'POST-MATCH' : 'NEXT APPEARANCE'}</span><div className="matchday-speed"><button className={`speed-button ${matchSpeed === 1 ? 'active' : ''}`} onClick={() => onSetSpeed(1)}>1×</button><button className={`speed-button ${matchSpeed === 2 ? 'active' : ''}`} onClick={() => onSetSpeed(2)}>2×</button><button className={`speed-button ${matchSpeed === 10 ? 'active' : ''}`} onClick={() => onSetSpeed(10)}>10×</button><span className="clock-mini">{phaseLabel}</span></div></div>
+    {!phase && <><div className="match-date">SAT, AUG {simDay + 5} <span>· IN 5 DAYS</span></div><div className="player-matchup"><div className="club-crest" style={{ background: profile.primaryColor, color: '#172219' }}>{profile.clubShort}</div><div className="versus-copy"><strong>VS</strong><span>LEAGUE FIXTURE</span></div><div className="opponent-crest" style={{ background: '#e96a59' }}>RU</div></div><div className="match-names"><b>{profile.clubName}</b><b>Redhaven United</b></div><div className="match-location"><Icon>⌖</Icon> Riverside Ground · Away<span className="difficulty medium">MEDIUM TEST</span></div><button className="outline-button full-button" onClick={() => openModal('Matchday role')}>View expected role <Icon>→</Icon></button></>}
+    {phase && match && <>
+      <div className="match-scoreboard"><div><span>{profile.clubShort}</span><strong>{match.teamGoals}</strong></div><div className="score-divider">—</div><div><span>{match.opponentShort}</span><strong>{match.opponentGoals}</strong></div></div>
+      <div className="matchday-status"><span>PERFORMANCE <b>{match.rating.toFixed(1)}</b></span><span>STAMINA <b>{Math.round(match.stamina)}%</b></span><span>PASSING <b>{match.passes}</b></span></div>
+      <p className="matchday-narrative">{matchNarrative}</p>
+      {inChoicePoint && <div className="match-timer-bar"><div className="match-timer-fill" style={{ width: `${(actionTimer / 8) * 100}%`, background: actionTimer <= 3 ? 'var(--amber)' : 'var(--cyan)' }} /><span>{actionTimer}s to decide</span></div>}
+      {inChoicePoint && <div className="match-choice-grid">{liveChoices.map((c) => <button key={c.action} className="match-choice" onClick={() => onAction(c.action)}><b>{c.label}</b><small>{c.sub}</small></button>)}</div>}
+      {!inChoicePoint && phase !== 'interview' && <p className="matchday-event">{match.lastEvent}</p>}
+      {(phase === 'pre' || phase === 'halftime' || phase === 'fulltime') && !inChoicePoint && <button className="primary-button full-button" onClick={onAdvance}>{advanceLabel} <Icon>→</Icon></button>}
+    </>}
+  </section>
 }
 
 function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: ReactNode }) {
@@ -927,6 +1118,136 @@ function ClubView({ budget, requestInvestment, openModal }: { budget: number; re
 
 function FinanceBar({ label, value, percent, color }: { label: string; value: string; percent: number; color: string }) {
   return <div className="finance-bar"><div><span>{label}</span><b>{value}</b></div><div className="finance-track"><i className={color} style={{ width: `${percent}%` }} /></div></div>
+}
+
+function CalendarView({ profile, dateIndex, fixtureResults, simDay, weekNumber, seasonNumber }: { profile: CareerProfile; dateIndex: number; fixtureResults: Record<number, string>; simDay: number; weekNumber: number; seasonNumber: number }) {
+  const MONTHS = ['AUG', 'SEP', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'MAY']
+  const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+  const currentMonthIndex = Math.min(MONTHS.length - 1, Math.max(0, Math.floor((weekNumber - 1) / 4.2)))
+  const [viewMonth, setViewMonth] = useState(currentMonthIndex)
+  const currentMonthLabel = `${MONTHS[viewMonth]} 2026`
+  const isViewingCurrentMonth = viewMonth === currentMonthIndex
+  const monthStartOffset = (viewMonth * 3) % 7
+  // Compute which weeks fall in this view month
+  const monthFixtureIndices: { fixtureIndex: number; approxDay: number }[] = []
+  for (let week = 0; week < 38; week++) {
+    const monthForWeek = Math.floor(week / 4.2)
+    if (monthForWeek === viewMonth) {
+      const weekInMonth = week - Math.floor(viewMonth * 4.2)
+      const matchDay = (7 + weekInMonth * 7) % 28
+      if (matchDay === 0) monthFixtureIndices.push({ fixtureIndex: week, approxDay: 28 })
+      else monthFixtureIndices.push({ fixtureIndex: week, approxDay: Math.max(1, Math.min(28, matchDay)) })
+    }
+  }
+  const getDayCell = (day: number) => {
+    const matchForDay = monthFixtureIndices.find((m) => m.approxDay === day)
+    const fixture = matchForDay !== undefined ? seasonFixtures[matchForDay.fixtureIndex] : null
+    const result = matchForDay !== undefined ? fixtureResults[matchForDay.fixtureIndex] : null
+    const isMatchDay = Boolean(fixture)
+    const isCompleted = Boolean(result)
+    // Compute which week this day falls in: first week of the month starts at viewMonth*4.2+1
+    const dayWeek = Math.floor(viewMonth * 4.2 + 1 + Math.floor((day - 1 + monthStartOffset) / 7))
+    const isToday = isViewingCurrentMonth && dayWeek === weekNumber && simDay === day
+    const isDeadline = day === 14 || day === 28
+    const isPast = dayWeek < weekNumber || (dayWeek === weekNumber && simDay > day)
+    let cellClass = 'calendar-day'
+    if (isToday) cellClass += ' today'
+    if (isMatchDay && isCompleted) cellClass += ' match-completed'
+    if (isMatchDay && !isCompleted && !isPast) cellClass += ' match-upcoming'
+    if (isMatchDay && !isCompleted && isPast) cellClass += ' match-past'
+    if (isDeadline && !isPast) cellClass += ' deadline'
+    if (isDeadline && isPast) cellClass += ' deadline-past'
+    if (isToday && !isMatchDay && !isDeadline) cellClass += ' training'
+    if (isPast && !isMatchDay && !isDeadline && !isToday) cellClass += ' past'
+    return { cellClass, fixture, result, isMatchDay, isCompleted, isToday, isDeadline, isPast }
+  }
+  const legendItems = [
+    { label: 'Matchday', cls: 'match-upcoming', dot: '◉' },
+    { label: 'Completed', cls: 'match-completed', dot: '✓' },
+    { label: 'Training', cls: 'training-sample', dot: '◌' },
+    { label: 'Deadline', cls: 'deadline', dot: '⟁' },
+    { label: 'Today', cls: 'today', dot: '◉' },
+  ]
+  return <>
+    <PageHeader eyebrow={`CALENDAR · ${currentMonthLabel} · SEASON ${String(seasonNumber).padStart(2, '0')}`} title="Plan the campaign." description={`Every fixture, every session, every deadline mapped for ${profile.clubName}.`} action={<div className="calendar-nav"><button className="outline-button" onClick={() => setViewMonth(Math.max(0, viewMonth - 1))} disabled={viewMonth === 0}><Icon>←</Icon> Prev</button><button className="primary-button" onClick={() => setViewMonth(currentMonthIndex)} disabled={isViewingCurrentMonth}>{isViewingCurrentMonth ? 'Current' : 'Jump to today'} <Icon>◷</Icon></button><button className="outline-button" onClick={() => setViewMonth(Math.min(MONTHS.length - 1, viewMonth + 1))} disabled={viewMonth === MONTHS.length - 1}>Next <Icon>→</Icon></button></div>} />
+    <div className="calendar-panel panel">
+      <div className="calendar-legend">{legendItems.map((item) => <span key={item.label}><i className={`legend-sample ${item.cls}`}>{item.dot}</i>{item.label}</span>)}</div>
+      <div className="calendar-weekdays">{WEEKDAYS.map((wd) => <span key={wd}>{wd}</span>)}</div>
+      <div className="calendar-grid">
+        {Array.from({ length: monthStartOffset }).map((_, i) => <div key={`empty-${i}`} className="calendar-day empty" />)}
+        {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => {
+          const { cellClass, fixture, result, isMatchDay, isDeadline, isToday } = getDayCell(day)
+          return <div key={day} className={cellClass} title={fixture ? `${fixture.opponent}${result ? ` · ${result}` : ''}${isToday ? ' · TODAY' : ''}` : isDeadline ? `Transfer deadline${isToday ? ' · TODAY' : ''}` : isToday ? 'Today · Training' : ''}>
+            <span className="day-num">{day}</span>
+            {isMatchDay && fixture && <span className="day-badge match-badge" style={{ background: fixture.crest }}>{fixture.short}{result ? ` ${result}` : ''}</span>}
+            {isDeadline && <span className="day-badge deadline-badge">{day === 14 ? 'Window opens' : 'Deadline day'}</span>}
+            {isToday && !isMatchDay && !isDeadline && <span className="day-badge today-badge">Training</span>}
+          </div>
+        })}
+      </div>
+    </div>
+    <div className="calendar-side-panels">
+      <section className="panel calendar-fixtures">
+        <div className="panel-heading"><div><span className="section-kicker">THIS MONTH</span><h3>Upcoming fixtures</h3></div></div>
+        {monthFixtureIndices.filter((m) => !fixtureResults[m.fixtureIndex]).slice(0, 5).map((m) => {
+          const f = seasonFixtures[m.fixtureIndex]
+          return <div className="brief-item" key={m.fixtureIndex}><div className="brief-icon purple">◉</div><div><b>{f.opponent}</b><p>{f.competition} · {f.home ? 'Home' : 'Away'} · Week {m.fixtureIndex + 1}</p></div><span className={`difficulty ${f.difficulty.toLowerCase()}`}>{f.difficulty}</span></div>
+        })}
+        {monthFixtureIndices.filter((m) => !fixtureResults[m.fixtureIndex]).length === 0 && <div className="empty-state"><h3>No upcoming fixtures</h3><p>All matches this month have been resolved.</p></div>}
+      </section>
+      <section className="panel calendar-results">
+        <div className="panel-heading"><div><span className="section-kicker">RECENT</span><h3>Results this month</h3></div></div>
+        {monthFixtureIndices.filter((m) => fixtureResults[m.fixtureIndex]).slice(0, 5).map((m) => {
+          const f = seasonFixtures[m.fixtureIndex]
+          const r = fixtureResults[m.fixtureIndex]
+          return <div className="brief-item" key={m.fixtureIndex}><div className="brief-icon lime">✓</div><div><b>{f.short} {r}</b><p>{f.competition} · Week {m.fixtureIndex + 1}</p></div><span className="brief-time">FINAL</span></div>
+        })}
+        {monthFixtureIndices.filter((m) => fixtureResults[m.fixtureIndex]).length === 0 && <div className="empty-state"><h3>No results yet</h3><p>Your first match result this month will appear here.</p></div>}
+      </section>
+    </div>
+  </>
+}
+
+function TransferApproachModal({ approach, profile, onAccept, onDecline, onConsider, onClose }: { approach: TransferApproach; profile: CareerProfile; onAccept: (a: TransferApproach) => void; onDecline: (a: TransferApproach) => void; onConsider: (a: TransferApproach) => void; onClose: () => void }) {
+  return <div className="modal-backdrop" onClick={onClose}><div className="modal transfer-modal" onClick={(e) => e.stopPropagation()} style={{ '--offer-primary': approach.primaryColor, '--offer-secondary': approach.secondaryColor } as CSSProperties}><button className="modal-close" onClick={onClose}>×</button><div className="transfer-modal-header" style={{ background: `linear-gradient(135deg, ${approach.primaryColor}, ${approach.secondaryColor})` }}><span className="live-pill"><i /> OFFICIAL APPROACH</span><div className="transfer-modal-crest">{approach.clubShort}</div><h2>{approach.clubName}</h2><p>{approach.identity}</p></div><div className="transfer-modal-body"><div className="transfer-storyline"><span className="section-kicker">THE APPROACH</span><p>{approach.storyline}</p></div><div className="transfer-perks"><div className="transfer-perk-column"><span className="section-kicker">PERKS</span>{approach.perks.map((p) => <div key={p} className="transfer-perk-item positive">+ {p}</div>)}</div><div className="transfer-perk-column"><span className="section-kicker">RISKS</span>{approach.risks.map((r) => <div key={r} className="transfer-perk-item risk">− {r}</div>)}</div></div><div className="transfer-comparison"><div className="transfer-club-comp current"><span>{profile.clubShort}</span><small>Current · {profile.league}</small></div><Icon className="transfer-arrow">→</Icon><div className="transfer-club-comp next"><span>{approach.clubShort}</span><small>{approach.league}</small></div></div><div className="transfer-meta-grid"><span><b>{profile.mode === 'manager' ? 'BUDGET' : 'WAGE'}</b>{profile.mode === 'manager' ? formatMoney(approach.managerBudget) : formatMoney(approach.playerWage) + '/wk'}</span><span><b>ROLE</b>{approach.playerRole}</span><span><b>TRAINING</b>{approach.playerTraining}/100</span><span><b>TRUST</b>{approach.managerTrust}%</span></div></div><div className="transfer-modal-footer"><button className="primary-button" onClick={() => { onAccept(approach) }}>Accept & join {approach.clubShort} <Icon>→</Icon></button><button className="outline-button" onClick={() => { onConsider(approach) }}>Consider later</button><button className="ghost-button" onClick={() => { onDecline(approach) }}>Decline</button></div></div></div>
+}
+
+function TransferOffersView({ profile, approaches, clubOffer, onConsider, onAccept, onDecline, onCounter }: { profile: CareerProfile; approaches: TransferApproach[]; clubOffer: ClubOffer | null; onConsider: (a: TransferApproach) => void; onAccept: (a: TransferApproach) => void; onDecline: (a: TransferApproach) => void; onCounter: (a: TransferApproach, demand: string) => void }) {
+  const active = approaches.filter((a) => a.stage !== 'declined' && a.stage !== 'accepted')
+  const decided = approaches.filter((a) => a.stage === 'declined' || a.stage === 'accepted')
+  return <><PageHeader eyebrow={`TRANSFER DESK · ${profile.clubName.toUpperCase()}`} title="Your next move." description={`Active approaches from clubs that want ${profile.mode === 'manager' ? 'you in the dugout' : 'you on the pitch'}.`} action={<button className="outline-button" onClick={() => {}}><Icon>↔</Icon> Agent: Maya Chen</button>} /><div className="transfer-active-section">{active.length === 0 ? <div className="empty-state panel"><div>↔</div><h3>No active approaches</h3><p>Clubs will make approaches as your reputation grows. Keep performing and the calls will come.</p></div> : active.map((approach) => <article className="transfer-offer-card panel" key={approach.id}><div className="transfer-offer-top"><div className="transfer-offer-crest" style={{ background: `linear-gradient(135deg, ${approach.primaryColor}, ${approach.secondaryColor})` }}>{approach.clubShort}</div><div className="transfer-offer-info"><span className="section-kicker">{approach.stage.toUpperCase()}</span><h3>{approach.clubName}</h3><p>{approach.identity} · {approach.league}</p></div><span className={`difficulty ${approach.managerTrust > 75 ? 'low' : approach.managerTrust > 60 ? 'medium' : 'high'}`}>{approach.managerTrust > 75 ? 'Warm interest' : approach.managerTrust > 60 ? 'Formal bid' : 'Urgent pursuit'}</span></div><p className="transfer-offer-narrative">{approach.storyline}</p><div className="transfer-offer-perks"><span className="section-kicker">WHAT THEY OFFER</span><div className="tag-row">{approach.perks.map((p) => <span key={p}>{p}</span>)}</div></div><div className="transfer-offer-meta"><span><b>{profile.mode === 'manager' ? 'BUDGET' : 'WAGE'}</b>{profile.mode === 'manager' ? formatMoney(approach.managerBudget) : formatMoney(approach.playerWage) + '/wk'}</span><span><b>ROLE</b>{approach.playerRole}</span><span><b>TRAINING</b>{approach.playerTraining}</span><span><b>TRUST</b>{approach.managerTrust}%</span></div>{approach.stage === 'negotiating' && <div className="transfer-counter"><span className="section-kicker">YOUR DEMAND</span><p>{approach.counterDemand || 'No demand submitted yet.'}</p></div>}<div className="transfer-offer-actions"><button className="primary-button" onClick={() => { onAccept(approach) }}>Accept <Icon>→</Icon></button><button className="outline-button" onClick={() => { onCounter(approach, `Improved ${profile.mode === 'manager' ? 'budget by 15%' : 'wages and role'} requested`) }}>{approach.stage === 'negotiating' ? 'Re-counter' : 'Negotiate'} <Icon>↔</Icon></button><button className="ghost-button" onClick={() => { onDecline(approach) }}>Decline</button></div></article>)}</div>{decided.length > 0 && <><div className="transfer-history-header"><span className="section-kicker">ARCHIVED</span></div><div className="transfer-history">{decided.map((approach) => <div className="brief-item" key={approach.id}><div className={`brief-icon ${approach.stage === 'accepted' ? 'lime' : 'purple'}`}>{approach.stage === 'accepted' ? '✓' : '✕'}</div><div><b>{approach.clubName}</b><p>{approach.stage === 'accepted' ? 'Transfer completed' : 'Approach declined'} · Week {approach.arrivalWeek}</p></div><span className="brief-time">{approach.stage === 'accepted' ? 'DONE' : 'CLOSED'}</span></div>)}</div></>}</>
+}
+
+function TrainingView({ profile, players, trainingEnergy, lastTrainingDay, simDay, doTrainingSession }: { profile: CareerProfile; players: Player[]; trainingEnergy: number; lastTrainingDay: number; simDay: number; doTrainingSession: (s: TrainingSession) => void }) {
+  const myPlayer = players.find((p) => p.id === 900) ?? players[0]
+  const skills = myPlayer.skills ?? { pace: 60, shooting: 60, passing: 60, dribbling: 60, physical: 60 }
+  const skillList: { key: keyof PlayerSkills; label: string; icon: string; color: string }[] = [
+    { key: 'pace', label: 'PACE', icon: '⚡', color: 'purple' },
+    { key: 'shooting', label: 'SHOOTING', icon: '◎', color: 'amber' },
+    { key: 'passing', label: 'PASSING', icon: '↗', color: 'cyan' },
+    { key: 'dribbling', label: 'DRIBBLING', icon: '◈', color: 'lime' },
+    { key: 'physical', label: 'PHYSICAL', icon: '▦', color: 'purple' },
+  ]
+  const avgSkills = Math.round((skills.pace + skills.shooting + skills.passing + skills.dribbling + skills.physical) / 5)
+  const canTrain = lastTrainingDay !== simDay && trainingEnergy >= 22
+  return <>
+    <PageHeader eyebrow={`TRAINING GROUND · DAY ${simDay}`} title="Build the complete player." description={`${profile.name}'s development session at ${profile.clubName}. Every drill sharpens an edge.`} action={<div className="training-energy-pill"><Icon>⚡</Icon><b>{trainingEnergy}%</b><small>Energy</small><div className="energy-track"><i style={{ width: `${trainingEnergy}%` }} /></div></div>} />
+    <div className="training-grid">
+      <section className="panel training-skills-panel">
+        <div className="panel-heading"><div><span className="section-kicker">PLAYER SKILLS</span><h3>{profile.name}</h3></div><strong className="training-avg">{avgSkills}<small>AVG</small></strong></div>
+        <div className="training-skill-list">{skillList.map((s) => <div key={s.key} className="training-skill-row"><div className="training-skill-icon" style={{ background: `var(--${s.color})`, opacity: .18 }}><Icon>{s.icon}</Icon></div><div className="training-skill-info"><span>{s.label}</span><b>{skills[s.key]}</b><div className="training-skill-track"><i style={{ width: `${skills[s.key]}%`, background: `var(--${s.color})` }} /></div></div></div>)}</div>
+      </section>
+      <section className="panel training-sessions-panel">
+        <div className="panel-heading"><div><span className="section-kicker">{canTrain ? 'AVAILABLE SESSIONS' : lastTrainingDay === simDay ? 'SESSION COMPLETE' : 'LOW ENERGY'}</span><h3>Today's drills</h3></div></div>
+        {trainingSessions.map((session) => <button key={session.id} className={`training-session-card ${!canTrain || trainingEnergy < session.energyCost ? 'disabled' : ''}`} onClick={() => doTrainingSession(session)} disabled={!canTrain || trainingEnergy < session.energyCost}>
+          <span className="training-session-icon"><Icon>{session.icon}</Icon></span>
+          <div className="training-session-info"><b>{session.label}</b><p>{session.description}</p></div>
+          <div className="training-session-meta"><span className={`difficulty ${session.energyCost > 30 ? 'high' : session.energyCost > 25 ? 'medium' : 'low'}`}>{session.skill.toUpperCase()}</span><small>−{session.energyCost} ⚡</small></div>
+        </button>)}
+        {!canTrain && <div className="empty-state"><h3>Rest & recover</h3><p>{lastTrainingDay === simDay ? 'Come back tomorrow for your next session.' : 'Your energy is too low. Rest overnight to recharge.'}</p></div>}
+      </section>
+    </div>
+  </>
 }
 
 export default App
