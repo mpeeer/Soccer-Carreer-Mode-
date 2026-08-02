@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
 import type { View, CareerMode, MatchPhase, Position, TransferApproach, PlayerSkills, TrainingSession, Player, Fixture, CareerProfile, ClubOffer, OnboardingSave, Prospect, PlayerMatch, ManagerMatch, SimulationEvent, SavedCareer, SavedCareerEnvelope, SaveStatus, TransferTab, Tactics } from './types'
-import { SAVE_KEY, PROFILE_KEY, ONBOARDING_KEY, CURRENT_SAVE_VERSION, initialPlayers, seasonFixtures, prospects, clubOfferPool, trainingSessions, transferClubPool, navItems, playerNavItems, formatFixtureDate, createClubOffers, seedDynamicRatings, defaultTactics, positionColors } from './data'
-import { backupLegacySaveIfNeeded, readSavedOnboarding, readSavedCareer, profileFromOffer, formatMoney, formatSavedTime, createCareerPlayer, createLegacyClubOffer, Icon } from './utils'
+import { SAVE_KEY, PROFILE_KEY, ONBOARDING_KEY, CURRENT_SAVE_VERSION, initialPlayers, seasonFixtures, prospects, trainingSessions, transferClubPool, navItems, playerNavItems, createClubOffers, seedDynamicRatings, defaultTactics } from './data'
+import { backupLegacySaveIfNeeded, readSavedOnboarding, readSavedCareer, profileFromOffer, formatMoney, createCareerPlayer, Icon } from './utils'
 import { TransferHub } from './views/transferHub'
 import { PlayerProfile } from './views/playerProfile'
 import { TeamManagement } from './views/teamManagement'
 import { DynamicRatingsTicker } from './views/dynamicRatingsTicker'
 import { TacticsView } from './views/tactics'
-import { PlayerPortrait } from './portraits/playerPortrait'
 import { PageHeader } from './views/pageHeader'
 import { PlayerHubView } from './views/hubViews'
 import { MatchdayPanel } from './views/hubViews'
@@ -28,6 +27,8 @@ import { FinanceBar } from './views/clubViews'
 import { CalendarView } from './views/calendarView'
 import { TransferApproachModal } from './views/transferViews'
 import { TransferOffersView } from './views/transferViews'
+import { ClubOffersView, IntroductionView, SetupView } from './views/setupViews'
+import { LandingPage, DocsPage } from './views/landingViews'
 import { TrainingView } from './views/trainingView'
 function App() {
   const savedCareer = readSavedCareer()
@@ -701,86 +702,6 @@ function App() {
       {isModalOpen && <div className="modal-backdrop" onClick={() => setIsModalOpen(false)}><div className="modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" aria-label="Close" onClick={() => setIsModalOpen(false)}>×</button><span className="section-kicker">CAREER MODE</span><h2>{modalTitle}</h2><p>{pendingInvestment ? 'The board will review a €2.5M capital request for your transfer runway.' : 'This action is ready for your decision.'}</p><div className="modal-choices"><button className="primary-button" onClick={() => { if (pendingInvestment) { setBudget((current) => current + 2500000); setPendingInvestment(false); showToast('Board investment approved · €2.5M added') } else { showToast(`${modalTitle} confirmed`) } setIsModalOpen(false) }}>Confirm<Icon>→</Icon></button><button className="ghost-button" onClick={() => setIsModalOpen(false)}>Cancel</button></div></div></div>}
     </div>
   )
-}
-
-function ClubOffersView({ onboarding, onAccept }: { onboarding: OnboardingSave; onAccept: (offer: ClubOffer) => void }) {
-  return <div className="setup-shell"><header className="setup-brand"><div className="brand-hex">NS</div><div><b>NORTHSTAR FC</b><small>CAREER MODE</small></div></header><main className="setup-card offers-card"><div className="setup-intro"><span className="live-pill"><i /> CLUB OFFERS</span><span className="section-kicker">SEASON 01 · YOUR FIRST APPOINTMENT</span><h1>Club offers</h1><p>{onboarding.name}, three clubs have submitted offers for your appointment. Review each one before deciding.</p></div><div className="offer-grid">{onboarding.offers.map((offer, index) => <article className="club-offer" key={offer.id} style={{ '--offer-primary': offer.primaryColor, '--offer-secondary': offer.secondaryColor } as CSSProperties}><div className="offer-topline"><span className="offer-index">0{index + 1}</span><span className="offer-league">{offer.league}</span></div><div className="offer-crest">{offer.clubShort}</div><span className="offer-identity">{offer.identity}</span><h2>{offer.clubName}</h2><p>{offer.description}</p><div className="offer-meta"><span><b>STYLE</b>{offer.philosophy}</span><span><b>{onboarding.mode === 'manager' ? 'BUDGET' : 'PATHWAY'}</b>{onboarding.mode === 'manager' ? formatMoney(offer.managerBudget) : offer.playerRole}</span></div><div className="offer-tradeoffs"><div><b>ADVANTAGES</b>{offer.pros.map((item) => <span key={item}>+ {item}</span>)}</div><div><b>TRADE-OFFS</b>{offer.cons.map((item) => <span key={item}>− {item}</span>)}</div></div><button className="primary-button full-button" onClick={() => onAccept(offer)}>{onboarding.acceptedOffer?.id === offer.id ? 'Continue with this club' : `Accept ${offer.clubName}`} <Icon>→</Icon></button></article>)}</div><div className="setup-footer"><span>Offers are locked to this career and saved locally.</span><span>{onboarding.mode === 'manager' ? 'Manager appointment' : 'Player contract'} · Season 1</span></div></main></div>
-}
-
-function IntroductionView({ profile, offer, onContinue }: { profile: CareerProfile; offer: ClubOffer | null; onContinue: () => void }) {
-  const acceptedOffer = offer ?? createLegacyClubOffer(profile)
-  const isManager = profile.mode === 'manager'
-  return <div className="setup-shell"><header className="setup-brand"><div className="brand-hex">NS</div><div><b>NORTHSTAR FC</b><small>CAREER MODE</small></div></header><main className="setup-card introduction-card"><div className="intro-scoreboard"><span>SEASON 01</span><b>WEEK 01</b><span>{acceptedOffer.league.toUpperCase()}</span></div><div className="setup-intro"><span className="live-pill"><i /> APPOINTMENT CONFIRMED</span><span className="section-kicker">THE OPENING BRIEFING</span><h1>{acceptedOffer.clubName}</h1><p>{isManager ? 'You have been appointed manager. Expectations are clear: establish an identity and deliver results.' : 'Your contract is signed. Training performance will determine how quickly you break into the first team.'}</p></div><div className="introduction-grid"><div className="introduction-club" style={{ background: `linear-gradient(135deg, ${acceptedOffer.primaryColor}, ${acceptedOffer.secondaryColor})` }}><span>{acceptedOffer.clubShort}</span><div><b>{acceptedOffer.clubName}</b><small>{acceptedOffer.identity} · {acceptedOffer.philosophy}</small></div></div><div className="introduction-brief"><span className="section-kicker">{isManager ? 'BOARD MANDATE' : 'FIRST-TEAM BRIEF'}</span><b>{isManager ? 'Make the club competitive without losing its identity.' : `Earn a role as a ${acceptedOffer.playerRole.toLowerCase()} and make every training session count.`}</b><div className="tag-row"><span>{acceptedOffer.pros[0]}</span><span>{acceptedOffer.cons[0]}</span></div></div></div><button className="primary-button setup-submit" onClick={onContinue}>Enter {acceptedOffer.clubName} <Icon>→</Icon></button><div className="setup-footer"><span>Season 1 · Week 1 · Day 1</span><span>Career state saves automatically</span></div></main></div>
-}
-
-function SetupView({ onComplete }: { onComplete: (onboarding: OnboardingSave) => void }) {
-  const [mode, setMode] = useState<CareerMode>('manager')
-  const [name, setName] = useState('Jules Park')
-  const [league, setLeague] = useState('Premier Division')
-  const [difficulty, setDifficulty] = useState('Authentic')
-  const [playerPosition, setPlayerPosition] = useState<Position>('AM')
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    onComplete({ mode, name: name.trim() || 'Jules Park', leaguePreference: league, difficulty, playerPosition, offers: [] })
-  }
-
-  return <div className="setup-shell"><header className="setup-brand"><div className="brand-hex">NS</div><div><b>NORTHSTAR FC</b><small>CAREER MODE</small></div></header><main className="setup-card"><div className="setup-intro"><span className="live-pill"><i /> NEW CAREER</span><span className="section-kicker">SEASON 01 · FRESH APPOINTMENT</span><h1>Start your career</h1><p>Choose your path, name, and starting conditions. Every decision shapes your story.</p></div><form onSubmit={submit}><div className="setup-grid"><div className="setup-field"><span>CAREER MODE</span><div className="mode-toggle"><button type="button" className={mode === 'manager' ? 'active' : ''} onClick={() => setMode('manager')}><span className="setup-option-icon" style={{ color: '#00d4ff', background: 'rgba(0,212,255,.1)' }}>⚑</span><span><b>Manager career</b><small>Lead the club from the touchline</small></span></button><button type="button" className={mode === 'player' ? 'active' : ''} onClick={() => setMode('player')}><span className="setup-option-icon" style={{ color: '#4cf051', background: 'rgba(76,240,81,.1)' }}>★</span><span><b>Player career</b><small>Control your own destiny</small></span></button></div></div><div className="setup-field"><span>YOUR NAME</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your name" maxLength={40} /></div><div className="setup-field"><span>PREFERRED LEAGUE</span><select value={league} onChange={(e) => setLeague(e.target.value)}><option>Premier Division</option><option>Continental League</option><option>Coastal Championship</option><option>Alpine League</option></select></div><div className="setup-field"><span>DIFFICULTY</span><select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}><option>Authentic</option><option>Challenging</option><option>Standard</option></select></div><div className="setup-field"><span>PLAYER POSITION</span><select value={playerPosition} onChange={(e) => setPlayerPosition(e.target.value as Position)}>{(mode === 'player' ? ['AM', 'ST', 'LW', 'RW', 'CM', 'DM', 'CB', 'LB', 'RB', 'GK'] : ['AM', 'ST', 'LW', 'RW', 'CM', 'CB']).map((p) => <option key={p}>{p}</option>)}</select></div></div><div className="club-customizer"><div><small>CLUB STYLE</small><b>Generated from league selection</b></div><div className="kit-preview" style={{ background: 'linear-gradient(135deg,#0ea5e9,#1f8a5f)', color: '#fff' }}>NS</div></div><button type="submit" className="setup-submit">Generate club offers <Icon>→</Icon></button></form><div className="setup-footer"><span>All progress saves automatically</span><span>Season 1 · Aug 2026</span></div></main></div>
-}
-
-
-function LandingPage({ onEnter, onDocs, hasSavedCareer, onContinue }: { onEnter: () => void; onDocs: () => void; hasSavedCareer: boolean; onContinue: () => void }) {
-  return <div className="landing-shell">
-    <nav className="landing-nav">
-      <div className="landing-logo">
-        <div className="landing-logo-icon">NS</div>
-        <div className="landing-logo-text">NORTHSTAR<span> FC</span></div>
-      </div>
-      <div className="landing-nav-links">
-        <button onClick={onDocs}>Features</button>
-        <button onClick={onDocs}>About</button>
-        {hasSavedCareer ? (
-          <button className="primary-pill" onClick={onContinue}>CONTINUE CAREER</button>
-        ) : (
-          <button className="primary-pill" onClick={onEnter}>NEW CAREER</button>
-        )}
-      </div>
-    </nav>
-    <main className="landing-hero">
-      <div className="eyebrow"><i /> NORTHSTAR FC · CAREER MODE</div>
-      <h1>BUILD YOUR<br /><span>LEGACY</span></h1>
-      <p>Take control as a manager or player. Navigate transfers, tactics, training, and matchdays in a living, breathing football world.</p>
-      <div className="landing-ctas">
-        {hasSavedCareer ? (
-          <button className="btn-primary" onClick={onContinue}>CONTINUE CAREER <Icon>→</Icon></button>
-        ) : (
-          <button className="btn-primary" onClick={onEnter}>NEW CAREER <Icon>→</Icon></button>
-        )}
-        <button className="btn-secondary" onClick={onDocs}>VIEW FEATURES</button>
-      </div>
-    </main>
-    <div className="landing-features">
-      <div className="landing-feature">
-        <div className="feat-icon">⚑</div>
-        <h3>Manager Mode</h3>
-        <p>Full tactical control, transfer negotiations, squad management, and live match simulation.</p>
-      </div>
-      <div className="landing-feature">
-        <div className="feat-icon">★</div>
-        <h3>Player Career</h3>
-        <p>Train, develop, negotiate contracts, and perform on the pitch. Your choices shape your path.</p>
-      </div>
-      <div className="landing-feature">
-        <div className="feat-icon">↔</div>
-        <h3>Transfer Hub</h3>
-        <p>Scout talent, negotiate deals, and manage your shortlist with real-time feedback from agents.</p>
-      </div>
-    </div>
-  </div>
-}
-
-function DocsPage({ onBack }: { onBack: () => void }) {
-  return <div className="docs-shell"><nav className="docs-nav"><button onClick={onBack}><Icon>←</Icon> Back</button></nav><div className="docs-content">    <h1>Northstar FC Career Mode</h1><p>A full-featured football career simulation built for the web. Manage your club or control a single player through a living, breathing football world.</p><h2>Features</h2><ul><li><b>Manager Career:</b> Tactics editor, squad rotation, contract management, live match simulation with tactical influence.</li><li><b>Player Career:</b> Training progress, form tracking, transfer approaches, matchday decision-making.</li><li><b>Transfer Hub:</b> Market scouting, agent negotiations, shortlist management, detailed player profiles.</li><li><b>Dynamic Ratings:</b> Player OVR fluctuates based on performance, form, and recent results.</li><li><b>Calendar & Fixtures:</b> Full 38-week season with fixture tracking and result history.</li><li><b>Team Management:</b> Formation editor, substitution system, tactics assignments.</li></ul><h2>Getting Started</h2><p>Choose <b>Manager</b> or <b>Player</b> career mode. Select a club from three offers tailored to your preferences. The game auto-saves after every action.</p><h2>Tech Stack</h2><p>Built with React, TypeScript, and Vite. All data stored locally in your browser. No servers, no accounts — just football.</p></div></div>
 }
 
 export default App

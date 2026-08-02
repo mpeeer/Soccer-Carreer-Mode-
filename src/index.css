@@ -60,17 +60,40 @@ a { color: var(--fc-cyan); text-decoration: none; }
     radial-gradient(ellipse 50% 40% at 80% 70%, rgba(144,102,255,.03) 0%, transparent 60%);
   pointer-events: none;
 }
-/* Triangular pattern */
+/* Animated triangular grid pattern */
 .landing-shell::after {
   content: '';
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(30deg, rgba(255,255,255,.015) 1px, transparent 1px),
-    linear-gradient(-30deg, rgba(255,255,255,.015) 1px, transparent 1px);
-  background-size: 40px 40px;
+    linear-gradient(30deg, rgba(255,255,255,.02) 1px, transparent 1px),
+    linear-gradient(-30deg, rgba(255,255,255,.02) 1px, transparent 1px);
+  background-size: 50px 50px;
   pointer-events: none;
-  opacity: .5;
+  opacity: .6;
+  animation: grid-drift 20s linear infinite;
+}
+@keyframes grid-drift {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 50px 50px, -50px -50px; }
+}
+
+/* Floating stadium orbs */
+.landing-orbs {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+}
+.landing-orb {
+  position: absolute; border-radius: 50%; filter: blur(60px); opacity: .15;
+  animation: orb-float 12s ease-in-out infinite;
+}
+.landing-orb:nth-child(1) { width: 300px; height: 300px; background: var(--fc-green); top: 10%; left: 15%; animation-delay: 0s; }
+.landing-orb:nth-child(2) { width: 200px; height: 200px; background: var(--fc-cyan); top: 60%; left: 70%; animation-delay: -4s; }
+.landing-orb:nth-child(3) { width: 250px; height: 250px; background: var(--fc-purple); top: 30%; left: 50%; animation-delay: -8s; opacity: .1; }
+@keyframes orb-float {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  25% { transform: translate(30px,-20px) scale(1.1); }
+  50% { transform: translate(-20px,15px) scale(.95); }
+  75% { transform: translate(-15px,-30px) scale(1.05); }
 }
 .landing-nav {
   width: 100%;
@@ -104,9 +127,18 @@ a { color: var(--fc-cyan); text-decoration: none; }
 .landing-nav-links button:hover { color: var(--fc-text); background: rgba(255,255,255,.04); }
 .landing-nav-links .primary-pill {
   background: var(--fc-green); color: #0a0e17;
-  padding: 9px 20px; border-radius: 8px; font-weight: 700;
+  padding: 10px 22px; border-radius: 8px; font-weight: 700;
+  transition: all .2s cubic-bezier(.4,0,.2,1);
+  position: relative; overflow: hidden;
 }
-.landing-nav-links .primary-pill:hover { background: #3dd940; color: #0a0e17; }
+.landing-nav-links .primary-pill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.2) 0%, transparent 60%);
+  opacity: 0; transition: opacity .2s;
+}
+.landing-nav-links .primary-pill:hover { background: #3dd940; color: #0a0e17; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(76,240,81,.3); }
+.landing-nav-links .primary-pill:hover::after { opacity: 1; }
+.landing-nav-links .primary-pill:active { transform: translateY(0); }
 .landing-hero {
   position: relative; z-index: 1;
   text-align: center; padding: 80px 24px 90px;
@@ -134,15 +166,26 @@ a { color: var(--fc-cyan); text-decoration: none; }
 .landing-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .landing-ctas .btn-primary {
   background: var(--fc-green); color: #0a0e17; font-weight: 700;
-  padding: 13px 28px; border-radius: 8px; font-size: 14px;
-  display: inline-flex; align-items: center; gap: 8px; transition: .15s;
+  padding: 14px 30px; border-radius: 8px; font-size: 14px;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: all .2s cubic-bezier(.4,0,.2,1);
+  position: relative; overflow: hidden;
 }
-.landing-ctas .btn-primary:hover { background: #3dd940; }
+.landing-ctas .btn-primary::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.2) 0%, transparent 60%);
+  opacity: 0; transition: opacity .2s;
+}
+.landing-ctas .btn-primary:hover { background: #3dd940; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(76,240,81,.35); }
+.landing-ctas .btn-primary:hover::after { opacity: 1; }
+.landing-ctas .btn-primary:active { transform: translateY(0); }
 .landing-ctas .btn-secondary {
   border: 1px solid rgba(255,255,255,.12); color: var(--fc-text-secondary);
-  padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; transition: .15s;
+  padding: 13px 28px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  transition: all .2s cubic-bezier(.4,0,.2,1);
 }
-.landing-ctas .btn-secondary:hover { border-color: rgba(255,255,255,.2); color: var(--fc-text); }
+.landing-ctas .btn-secondary:hover { border-color: rgba(255,255,255,.25); color: var(--fc-text); background: rgba(255,255,255,.03); transform: translateY(-2px); }
+.landing-ctas .btn-secondary:active { transform: translateY(0); }
 .landing-features {
   display: grid; grid-template-columns: repeat(3,1fr); gap: 20px;
   max-width: 840px; width: 100%; padding: 0 24px 80px; position: relative; z-index: 1;
@@ -150,9 +193,16 @@ a { color: var(--fc-cyan); text-decoration: none; }
 .landing-feature {
   text-align: center; padding: 28px 20px; border-radius: 12px;
   background: rgba(255,255,255,.02); border: 1px solid rgba(255,255,255,.04);
-  transition: .2s;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
+  position: relative; overflow: hidden;
 }
-.landing-feature:hover { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.08); }
+.landing-feature::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--fc-green), transparent);
+  opacity: 0; transition: opacity .3s;
+}
+.landing-feature:hover { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.1); transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,.3); }
+.landing-feature:hover::before { opacity: 1; }
 .landing-feature .feat-icon { font-size: 28px; margin-bottom: 14px; }
 .landing-feature h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--fc-text); }
 .landing-feature p { font-size: 12px; color: var(--fc-text-secondary); line-height: 1.5; }
