@@ -511,6 +511,7 @@ function App() {
   const processedDayRef = useRef(savedCareer?.simDay ?? 1)
   const previousMinuteRef = useRef(savedCareer?.simMinute ?? 8 * 60)
   const careerMode = profile?.mode ?? 'manager'
+  const [pageMode, setPageMode] = useState<'landing' | 'docs' | 'game'>('landing')
   const visibleNavItems = careerMode === 'player' ? playerNavItems : navItems
 
   useEffect(() => {
@@ -926,6 +927,9 @@ function App() {
     showToast('Scout report filed · ready for review')
   }
 
+  if (pageMode === 'landing') return <LandingPage onEnter={() => setPageMode('game')} onDocs={() => setPageMode('docs')} hasSavedCareer={!!profile} onContinue={() => setPageMode('game')} />
+  if (pageMode === 'docs') return <DocsPage onBack={() => setPageMode('landing')} />
+
   if (!profile) return onboarding ? <ClubOffersView onboarding={onboarding} onAccept={(offer) => {
     const nextProfile: CareerProfile = { mode: onboarding.mode, name: onboarding.name, clubName: offer.clubName, clubShort: offer.clubShort, league: offer.league, primaryColor: offer.primaryColor, secondaryColor: offer.secondaryColor, difficulty: onboarding.difficulty, playerPosition: onboarding.playerPosition }
     try { window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify({ ...onboarding, acceptedOffer: offer })) } catch { /* career save follows immediately */ }
@@ -1322,6 +1326,57 @@ function TrainingView({ profile, players, trainingEnergy, lastTrainingDay, simDa
       </section>
     </div>
   </>
+}
+
+function LandingPage({ onEnter, onDocs, hasSavedCareer, onContinue }: { onEnter: () => void; onDocs: () => void; hasSavedCareer: boolean; onContinue: () => void }) {
+  return <div className="landing-shell">
+    <nav className="landing-nav"><span className="landing-logo">◈</span><b>Northstar FC</b><button className="ghost-button" onClick={onDocs}>Docs</button></nav>
+    <main className="landing-main">
+      <div className="landing-hero">
+        <span className="section-kicker">Career mode simulation</span>
+        <h1>Run the club.<br />Write the story.</h1>
+        <p>Manage a squad, navigate the transfer market, develop youth talent, and make every matchday count. Northstar FC is a deep, offline-first football management simulation.</p>
+        <div className="landing-actions">
+          <button className="primary-button landing-cta" onClick={onEnter}>New career <Icon>→</Icon></button>
+          {hasSavedCareer && <button className="outline-button" onClick={onContinue}>Continue career <Icon>↗</Icon></button>}
+        </div>
+      </div>
+      <div className="landing-features">
+        <div className="landing-feature"><span className="feature-icon">♙</span><div><b>Squad management</b><p>13-player squad with individual attributes, form tracking, and development plans.</p></div></div>
+        <div className="landing-feature"><span className="feature-icon">↗</span><div><b>Transfer market</b><p>Scout prospects, negotiate contracts, and build your shortlist across leagues.</p></div></div>
+        <div className="landing-feature"><span className="feature-icon">◷</span><div><b>Season calendar</b><p>Full 10-month calendar with matchdays, transfer windows, and training blocks.</p></div></div>
+        <div className="landing-feature"><span className="feature-icon">✦</span><div><b>Youth academy</b><p>Develop young talent through coaching programs and promotion pathways.</p></div></div>
+        <div className="landing-feature"><span className="feature-icon">⚡</span><div><b>Live matchday</b><p>Real-time match simulation with tactical choices, substitutions, and analytics.</p></div></div>
+      </div>
+    </main>
+    <footer className="landing-footer"><span>Offline-first · Auto-saves locally · No accounts required</span><span>v0.1 · Built with React + TypeScript</span></footer>
+  </div>
+}
+
+function DocsPage({ onBack }: { onBack: () => void }) {
+  return <div className="landing-shell">
+    <nav className="landing-nav"><span className="landing-logo">◈</span><b>Northstar FC</b><button className="ghost-button" onClick={onBack}>← Back</button></nav>
+    <main className="docs-main">
+      <h1>Documentation</h1>
+      <section className="docs-section">
+        <h3>Getting started</h3>
+        <p>Choose between Manager Career (run the club, manage finances, control transfers) or Player Career (develop your pro, train skills, earn a starting role). Three club offers are generated based on your league preference — each with unique budgets, expectations, and pathways.</p>
+      </section>
+      <section className="docs-section">
+        <h3>Manager career</h3>
+        <p>Control the squad, manage a transfer budget, scout prospects, develop the academy, and make tactical decisions on matchday. Board confidence, financial health, and club DNA all respond to your choices. Matches simulate in real time with live analytics, substitutions, and speed controls.</p>
+      </section>
+      <section className="docs-section">
+        <h3>Player career</h3>
+        <p>Train five core skills (pace, shooting, passing, dribbling, physical) through daily sessions with an energy system. Build relationships in the dressing room, respond to transfer approaches, and make split-second matchday choices. Every training session and match decision shapes your rating and career trajectory.</p>
+      </section>
+      <section className="docs-section">
+        <h3>Simulation & saving</h3>
+        <p>The game clock runs in real time at adjustable speeds (1×, 2×, 20×). A 28-day month cycle drives fixture scheduling, training regeneration, and transfer events. All progress saves automatically to your browser's local storage — no server, no account, no internet required.</p>
+      </section>
+    </main>
+    <footer className="landing-footer"><span>Offline-first · Auto-saves locally · No accounts required</span><span>v0.1 · Built with React + TypeScript</span></footer>
+  </div>
 }
 
 export default App

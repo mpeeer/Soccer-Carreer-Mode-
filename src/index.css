@@ -706,3 +706,36 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outl
   .transfer-offer-actions { padding: 10px 16px 14px; flex-wrap: wrap; }
   .transfer-offer-actions .primary-button { flex-basis: 100%; }
 }
+
+/* Landing & Docs */
+.landing-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+.landing-nav { height: 64px; display: flex; align-items: center; gap: 12px; padding: 0 48px; border-bottom: 1px solid var(--line); }
+.landing-logo { font-size: 22px; color: var(--purple); }
+.landing-nav b { color: #e2e8f0; font: 600 14px 'Inter'; letter-spacing: .04em; }
+.landing-nav .ghost-button { margin-left: auto; }
+.landing-main { flex: 1; max-width: 960px; margin: 0 auto; padding: 80px 48px 60px; width: 100%; }
+.landing-hero { max-width: 620px; margin-bottom: 80px; }
+.landing-hero .section-kicker { margin-bottom: 16px; display: block; }
+.landing-hero h1 { font: 700 clamp(36px, 5vw, 56px)/1.06 'Inter'; letter-spacing: -.025em; color: #f1f5f9; margin: 0 0 20px; }
+.landing-hero p { color: #94a3b8; font-size: 15px; line-height: 1.65; margin: 0; max-width: 540px; }
+.landing-actions { display: flex; gap: 14px; margin-top: 36px; }
+.landing-cta { min-height: 48px; padding: 0 28px; font-size: 14px; }
+.landing-features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+.landing-feature { display: flex; gap: 16px; padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.feature-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 8px; background: rgba(139,124,246,.08); color: var(--purple); font-size: 18px; flex: 0 0 auto; }
+.landing-feature b { display: block; color: #e2e8f0; font-size: 13px; margin-bottom: 4px; }
+.landing-feature p { color: #64748b; font-size: 11px; line-height: 1.5; margin: 0; }
+.landing-footer { display: flex; justify-content: space-between; padding: 24px 48px; border-top: 1px solid var(--line); color: #475569; font: 10px 'DM Mono'; }
+/* Docs */
+.docs-main { flex: 1; max-width: 760px; margin: 0 auto; padding: 60px 48px; width: 100%; }
+.docs-main h1 { font: 700 32px 'Inter'; color: #f1f5f9; margin: 0 0 40px; }
+.docs-section { margin-bottom: 36px; }
+.docs-section h3 { font: 600 15px 'Inter'; color: #e2e8f0; margin: 0 0 10px; }
+.docs-section p { color: #94a3b8; font-size: 13px; line-height: 1.65; margin: 0; }
+@media (max-width: 800px) {
+  .landing-nav { padding: 0 24px; }
+  .landing-main { padding: 50px 24px 40px; }
+  .landing-features { grid-template-columns: 1fr; }
+  .docs-main { padding: 40px 24px; }
+  .landing-footer { padding: 20px 24px; flex-direction: column; gap: 6px; }
+}
