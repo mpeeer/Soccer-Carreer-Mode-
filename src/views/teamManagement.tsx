@@ -3,7 +3,6 @@ import type { CSSProperties } from 'react'
 import type { Player, View } from '../types'
 import { formations, positionColors } from '../data'
 import { Icon } from '../utils'
-import { PlayerPortrait } from '../portraits/playerPortrait'
 
 interface TeamManagementProps {
   players: Player[]
@@ -15,111 +14,100 @@ interface TeamManagementProps {
 }
 
 export function TeamManagement({ players, selectedPlayer, setSelectedPlayerId, setActiveView, onSubPlayer, onShowToast }: TeamManagementProps) {
+  const [view, setView] = useState<'combined' | 'in' | 'out' | 'both'>('both')
   const formation = formations.fourThreeThree
   const starters = useMemo(() => players.filter((p) => p.role !== 'Prospect').slice(0, formation.slots.length), [players, formation])
   const subs = useMemo(() => players.filter((p) => !starters.find((s) => s.id === p.id)), [players, starters])
   const [swapWith, setSwapWith] = useState<Player | null>(null)
 
-  const handleChipClick = (id: number) => {
-    setSelectedPlayerId(id)
-    setSwapWith(null)
-  }
+  const ratings: Record<number, string> = {}
+  starters.forEach((p) => {
+    const r = p.rating
+    ratings[p.id] = r >= 85 ? 'exc' : r >= 80 ? 'good' : r >= 75 ? 'avg' : r >= 70 ? 'below' : 'poor'
+  })
+
+  // In possession: all players shift up slightly; out of possession: drop back
+  const inPoss = (posIndex: number) => ({ left: formation.slots[posIndex].x, top: formation.slots[posIndex].y * 0.85 + 8 })
+  const outPoss = (posIndex: number) => ({ left: formation.slots[posIndex].x, top: formation.slots[posIndex].y * 1.10 - 8 })
 
   return (
     <div className="ea-fc-theme ea-team-mgmt" style={{ '--tm-accent': positionColors[selectedPlayer.position] } as CSSProperties}>
-      {/* Top tabs */}
-      <header className="ea-top-tabs">
-        <div className="ea-brand-mark"><span>NS</span></div>
-        <nav className="ea-tab-nav">
-          <button className="ea-tab" onClick={() => setActiveView('squad')}>Squad</button>
-          <button className="ea-tab ea-tab-primary">Team</button>
-          <div className="ea-tab-divider" />
-          <button className="ea-tab" onClick={() => setActiveView('tactics')}>Tactics</button>
-          <div className="ea-tab-divider" />
-          <div className="ea-switch-view">
-            <button className="ea-switch">Without ball</button>
-            <button className="ea-switch">Switch view</button>
+      <header className="page-header" style={{ marginBottom: 'var(--s-4)' }}>
+        <div>
+          <span className="kicker">Match Day · Team Sheet</span>
+          <h1>{view === 'combined' ? 'Combined' : view === 'in' ? 'In Possession' : view === 'out' ? 'Out of Possession' : 'In & Out of Possession'}</h1>
+          <p>Tap a chip to swap. Use the table on the right to change roles or make subs.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--s-2)', alignItems: 'center' }}>
+          <div className="tac-tabs">
+            <button className={`tac-tabview${view === 'combined' ? ' active' : ''}`} onClick={() => setView('combined')}>Combined</button>
+            <button className={`tac-tabview${view === 'in' ? ' active' : ''}`} onClick={() => setView('in')}>In Possession</button>
+            <button className={`tac-tabview${view === 'out' ? ' active' : ''}`} onClick={() => setView('out')}>Out of Possession</button>
+            <button className={`tac-tabview${view === 'both' ? ' active' : ''}`} onClick={() => setView('both')}>Both</button>
           </div>
-        </nav>
+        </div>
       </header>
 
-      {/* Body */}
-      <div className="ea-tm-body">
-        {/* Pitch */}
-        <section className="ea-pitch-wrap">
-          <div className="ea-pitch">
-            <div className="ea-pitch-line center-circle" />
-            <div className="ea-pitch-line center-line" />
-            <div className="ea-pitch-line center-spot" />
-            <div className="ea-pitch-line penalty-area-top" />
-            <div className="ea-pitch-line penalty-area-bottom" />
-            <div className="ea-pitch-line goal-area-top" />
-            <div className="ea-pitch-line goal-area-bottom" />
-            {starters.map((player, i) => {
-              const slot = formation.slots[i]
-              const active = selectedPlayer.id === player.id
-              return (
-                <button
-                  key={player.id}
-                  className={`ea-player-chip${active ? ' ea-chip-active' : ''}`}
-                  style={{ left: `${slot.x}%`, top: `${slot.y}%`, '--chip-accent': positionColors[player.position] } as CSSProperties}
-                  onClick={() => handleChipClick(player.id)}
-                  title={player.name}
-                >
-                  <span className="ea-chip-rating">{player.rating}</span>
-                  <span className="ea-chip-name">{player.name.split(' ').slice(-1).join('').toUpperCase()}</span>
-                  <span className="ea-chip-position">{slot.position}</span>
-                </button>
-              )
-            })}
-          </div>
+      <div className={view === 'both' ? 'tac-grid' : ''} style={view !== 'both' ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) 360px', gap: 'var(--s-3)', alignItems: 'start' } : undefined}>
+        {view === 'both' && (
+          <>
+            <PitchWrapper
+              title="In Possession"
+              subtitle="Attacking phase · high line"
+              starters={starters}
+              formation={formation}
+              selectedPlayerId={selectedPlayer.id}
+              onChip={(id) => setSelectedPlayerId(id)}
+              ratings={ratings}
+              positionFn={inPoss}
+            />
+            <PitchWrapper
+              title="Out of Possession"
+              subtitle="Defensive phase · compact block"
+              starters={starters}
+              formation={formation}
+              selectedPlayerId={selectedPlayer.id}
+              onChip={(id) => setSelectedPlayerId(id)}
+              ratings={ratings}
+              positionFn={outPoss}
+            />
+          </>
+        )}
+        {view !== 'both' && (
+          <PitchWrapper
+            title={view === 'in' ? 'In Possession' : view === 'out' ? 'Out of Possession' : 'Combined View'}
+            subtitle={view === 'in' ? 'High line · attack the space' : view === 'out' ? 'Mid block · compact shape' : 'Both phases shown'}
+            starters={starters}
+            formation={formation}
+            selectedPlayerId={selectedPlayer.id}
+            onChip={(id) => setSelectedPlayerId(id)}
+            ratings={ratings}
+            positionFn={(i) => ({ left: formation.slots[i].x, top: formation.slots[i].y })}
+          />
+        )}
 
-          {/* Subs bench */}
-          <div className="ea-subs">
-            <div className="ea-subs-head">
-              <h4>Substitutes</h4>
-              <span>{subs.length} available</span>
-            </div>
-            <div className="ea-subs-row">
-              {subs.map((p) => (
-                <button
-                  key={p.id}
-                  className={`ea-sub-card${selectedPlayer.id === p.id ? ' ea-sub-active' : ''}`}
-                  style={{ '--sub-accent': positionColors[p.position] } as CSSProperties}
-                  onClick={() => handleChipClick(p.id)}
-                >
-                  <span className="ea-sub-rating">{p.rating}</span>
-                  <span className="ea-sub-name">{p.name.split(' ').map((n) => n[0]).join('')}</span>
-                  <small>{p.position}</small>
-                </button>
-              ))}
-              {subs.length === 0 && <span className="ea-subs-empty">No substitutes registered.</span>}
-            </div>
-          </div>
-        </section>
-
-        {/* Sidebar */}
-        <Sidebar player={selectedPlayer} swapWith={swapWith} setSwapWith={setSwapWith} players={players} sub={onSubPlayer} onGoHub={() => setActiveView('hub')} onShowToast={onShowToast} />
+        <SidePanel
+          player={selectedPlayer}
+          players={players}
+          starters={starters}
+          subs={subs}
+          formation={formation}
+          setSelectedPlayerId={setSelectedPlayerId}
+          onShowToast={onShowToast}
+          setActiveView={setActiveView}
+        />
       </div>
 
-      {/* Bottom action bar */}
-      <footer className="ea-tm-actions">
-        <button className="ea-tm-action-btn" onClick={() => onShowToast('Selection confirmed')}>✓ Select</button>
-        <button className="ea-tm-action-btn" onClick={() => setActiveView('squad')}>← Back</button>
-        <button className="ea-tm-action-btn" onClick={() => setActiveView('tactics')}>✎ Edit tactics</button>
-        <button className="ea-tm-action-btn">↔ Suggested sub</button>
-        <button className="ea-tm-action-btn" onClick={() => setActiveView('playerProfile')}>★ Full profile</button>
-        <button className="ea-tm-action-btn primary">⚡ Quick sub</button>
-      </footer>
-
       {swapWith && (
-        <div className="ea-swap-overlay">
-          <div className="ea-swap-popover">
-            <h4>Confirm swap</h4>
-            <p>Replace {selectedPlayer.name} with {swapWith.name}?</p>
-            <div className="ea-swap-actions">
-              <button className="outline" onClick={() => setSwapWith(null)}>Cancel</button>
-              <button className="primary" onClick={() => { onSubPlayer(selectedPlayer.id, swapWith.id); setSwapWith(null); onShowToast(`${swapWith.name} replaces ${selectedPlayer.name}`) }}>Confirm</button>
+        <div className="modal-backdrop" onClick={() => setSwapWith(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSwapWith(null)}>×</button>
+            <div className="kicker">Confirm substitution</div>
+            <h2>Bring on {swapWith.name}?</h2>
+            <p>Replace {selectedPlayer.name} ({selectedPlayer.position}) with {swapWith.name} ({swapWith.position}).</p>
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={() => { onSubPlayer(selectedPlayer.id, swapWith.id); setSwapWith(null); onShowToast(`${swapWith.name} on for ${selectedPlayer.name}`) }}>Confirm sub <Icon>→</Icon></button>
+              <button className="btn btn-ghost" onClick={() => setSwapWith(null)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -128,55 +116,133 @@ export function TeamManagement({ players, selectedPlayer, setSelectedPlayerId, s
   )
 }
 
-function Sidebar({ player, swapWith, setSwapWith, players, sub, onGoHub, onShowToast }: { player: Player; swapWith: Player | null; setSwapWith: (p: Player | null) => void; players: Player[]; sub: (outId: number, inId: number) => void; onGoHub?: () => void; onShowToast?: (m: string) => void }) {
-  const accent = positionColors[player.position] ?? '#1f8a5f'
-  const initials = player.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
-  const subOptions = players.filter((p) => p.id !== player.id)
-
+function PitchWrapper({ title, subtitle, starters, formation, selectedPlayerId, onChip, ratings, positionFn }: { title: string; subtitle: string; starters: Player[]; formation: typeof formations.fourThreeThree; selectedPlayerId: number; onChip: (id: number) => void; ratings: Record<number, string>; positionFn: (i: number) => CSSProperties }) {
   return (
-    <aside className="ea-tm-sidebar" style={{ '--sb-accent': accent } as CSSProperties}>
-      <div className="ea-sb-head">
-        <span className="ea-sb-meta">
-          <strong>{player.position}</strong>
-          <small>{player.flag ?? 'HQ'} · {player.role?.toUpperCase()}</small>
-        </span>
-        <span className="ea-sb-rating">{player.rating}<small>OVR</small></span>
-        <span className="ea-sb-potential">{player.potential}<small>POT</small></span>
-      </div>
-      <div className="ea-sb-image">
-        <div className="ea-sb-portrait">
-          <PlayerPortrait initials={initials} accent={accent} shirt={player.shirtNumber ?? player.id} size="lg" className="ea-sb-portrait-svg" />
+    <section className="panel flush">
+      <div className="panel-head">
+        <div>
+          <span className="kicker accent">{title}</span>
+          <h3 style={{ fontSize: 'var(--t-md)', marginTop: 2 }}>{subtitle}</h3>
         </div>
-        <span className="ea-sb-name">{player.name}</span>
+        <div className="kicker">FORMATION · {formation.label}</div>
       </div>
-      <div className="ea-sb-status-row">
-        <span className="ea-sb-chip lime"><Icon>✓</Icon> OK</span>
-        <span className="ea-sb-chip orange"><span className="emo">☺</span> Happy</span>
-        <span className="ea-sb-chip cyan"><Icon>⚡</Icon> Sharp</span>
+      <div className="fm-pitch">
+        <div className="pitch-lines">
+          <div className="center-line" />
+          <div className="center-circle" />
+          <div className="center-spot" />
+          <div className="pen-area-top" style={{ background: 'transparent' }} />
+          <div className="pen-area-bottom" style={{ background: 'transparent' }} />
+          <div className="goal-area-top" />
+          <div className="goal-area-bottom" />
+        </div>
+        {starters.map((player, i) => {
+          const slot = formation.slots[i]
+          const active = selectedPlayerId === player.id
+          const pos = positionFn(i)
+          const rating = ratings[player.id] ?? 'avg'
+          return (
+            <button
+              key={player.id}
+              className={`pitch-chip${active ? ' active' : ''}`}
+              style={{ left: `${pos.left}%`, top: `${pos.top}%`, '--chip-accent': positionColors[slot.position] } as CSSProperties}
+              onClick={() => onChip(player.id)}
+              title={player.name}
+            >
+              <span className={`rating ${rating}`} style={{ width: 24, height: 18, fontSize: 11 }}>{player.rating}</span>
+              <span className="pc-name">{player.name.split(' ').slice(-1)[0]?.toUpperCase()}</span>
+              <span className="pc-pos">{slot.position}</span>
+            </button>
+          )
+        })}
       </div>
-      <div className="ea-sb-match-status"><strong>Ready to play</strong></div>
-      <div className="ea-sb-divider" />
-      <div className="ea-sb-stat-grid">
-        <div><span>Pace</span><b>{player.skills.pace}</b></div>
-        <div><span>Shooting</span><b>{player.skills.shooting}</b></div>
-        <div><span>Passing</span><b>{player.skills.passing}</b></div>
-        <div><span>Dribbling</span><b>{player.skills.dribbling}</b></div>
-        <div><span>Defending</span><b>{Math.max(30, player.skills.physical - 30)}</b></div>
-        <div><span>Physical</span><b>{player.skills.physical}</b></div>
-      </div>
-      <div className="ea-sb-extras">
-        <div><span>Age</span><b>{player.age}</b></div>
-        <div><span>Height</span><b>{player.height ?? '5\'11"'}</b></div>
-        <div><span>Skill moves</span><b>{'★'.repeat(player.skillMoves ?? 3)}</b></div>
-        <div><span>Weak foot</span><b>{'★'.repeat(player.weakFoot ?? 3)}</b></div>
-        <div><span>Foot</span><b>{player.preferredFoot ?? 'Right'}</b></div>
-        <div><span>Role</span><b>{player.role}</b></div>
-      </div>
-      <div className="ea-sb-actions">
-        <button className="ea-sb-action primary" onClick={() => { onShowToast?.('Quick sub applied'); sub(player.id, subOptions[0]?.id ?? player.id) }}><Icon>↔</Icon> Quick sub</button>
-        <button className="ea-sb-action" onClick={() => setSwapWith(subOptions[0] ?? null)}><Icon>⚡</Icon> Swap</button>
-        <button className="ea-sb-action" onClick={() => onGoHub?.()}><Icon>←</Icon> Hub</button>
-      </div>
+    </section>
+  )
+}
+
+function SidePanel({ player, players, starters, subs, setSelectedPlayerId, setActiveView, onShowToast }: { player: Player; players: Player[]; starters: Player[]; subs: Player[]; formation: typeof formations.fourThreeThree; setSelectedPlayerId: (id: number) => void; setActiveView: (v: View) => void; onShowToast: (m: string) => void }) {
+  return (
+    <aside className="tac-side">
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <span className="kicker">{player.position} · {player.flag ?? 'HQ'}</span>
+            <h3 style={{ fontSize: 'var(--t-md)', marginTop: 2 }}>{player.name}</h3>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <span className="rating exc" style={{ width: 36, height: 28, fontSize: 14 }}>{player.rating}</span>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.06em', marginTop: 2 }}>OVR · POT {player.potential}</div>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--s-2)' }}>
+          <div><span className="kicker">Pace</span><b className="mono">{player.skills.pace}</b></div>
+          <div><span className="kicker">Shooting</span><b className="mono">{player.skills.shooting}</b></div>
+          <div><span className="kicker">Passing</span><b className="mono">{player.skills.passing}</b></div>
+          <div><span className="kicker">Dribbling</span><b className="mono">{player.skills.dribbling}</b></div>
+          <div><span className="kicker">Defending</span><b className="mono">{Math.max(30, player.skills.physical - 30)}</b></div>
+          <div><span className="kicker">Physical</span><b className="mono">{player.skills.physical}</b></div>
+        </div>
+        <div className="tac-rhythm" style={{ marginTop: 'var(--s-2)' }}>
+          <button className="active">✓ OK</button>
+          <button>☺ Happy</button>
+          <button>⚡ Sharp</button>
+          <button>Ready</button>
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--s-2)', marginTop: 'var(--s-2)' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setActiveView('squad')}>← Squad</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setActiveView('tactics')}>✎ Tactics</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => onShowToast(`${player.name} marked ready`)}>Ready <Icon>✓</Icon></button>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <span className="kicker">Starting XI</span>
+            <h3 style={{ fontSize: 'var(--t-md)', marginTop: 2 }}>Select from squad</h3>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {[...players].sort((a, b) => b.rating - a.rating).slice(0, 14).map((p) => (
+            <button
+              key={p.id}
+              className={`panel-row ${p.id === player.id ? 'selected' : ''}`}
+              style={{ background: 'transparent', borderTop: '1px solid var(--line)', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 'var(--s-3)', padding: 'var(--s-2) var(--s-4)', fontSize: 'var(--t-sm)' }}
+              onClick={() => setSelectedPlayerId(p.id)}
+            >
+              <span className="row-icon" style={{ background: p.color, color: '#fff', fontWeight: 700, fontSize: 10 }}>{p.initials}</span>
+              <span className="row-text"><b>{p.name}</b><small>{p.position} · {p.fitness}% fit</small></span>
+              <span className={`rating ${p.rating >= 85 ? 'exc' : p.rating >= 80 ? 'good' : 'avg'}`} style={{ marginLeft: 'auto' }}>{p.rating}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <span className="kicker">Substitutes</span>
+            <h3 style={{ fontSize: 'var(--t-md)', marginTop: 2 }}>{subs.length.toString().padStart(2, '0')} of 7</h3>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {subs.slice(0, 7).map((p) => (
+            <button
+              key={p.id}
+              className="panel-row"
+              style={{ background: 'transparent', borderTop: '1px solid var(--line)', textAlign: 'left', color: 'inherit', display: 'flex', alignItems: 'center', gap: 'var(--s-3)', padding: 'var(--s-2) var(--s-4)', fontSize: 'var(--t-sm)' }}
+              onClick={() => onShowToast(`${p.name} benched`)}
+            >
+              <span className="row-icon" style={{ background: p.color, color: '#fff', fontWeight: 700, fontSize: 10 }}>{p.initials}</span>
+              <span className="row-text"><b>{p.name}</b><small>{p.position}</small></span>
+            </button>
+          ))}
+          {subs.length === 0 && <span className="muted" style={{ padding: 'var(--s-3)' }}>No substitutes registered.</span>}
+        </div>
+      </section>
     </aside>
   )
 }
+
+// Re-imported to preserve shape
+type Formation = typeof formations.fourThreeThree

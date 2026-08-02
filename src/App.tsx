@@ -8,28 +8,60 @@ import { PlayerProfile } from './views/playerProfile'
 import { TeamManagement } from './views/teamManagement'
 import { DynamicRatingsTicker } from './views/dynamicRatingsTicker'
 import { TacticsView } from './views/tactics'
-import { PageHeader } from './views/pageHeader'
 import { PlayerHubView } from './views/hubViews'
-import { MatchdayPanel } from './views/hubViews'
-import { ManagerMatchdayPanel } from './views/hubViews'
-import { HubView } from './views/hubViews'
-import { Metric } from './views/hubViews'
+import { ManagerHubView } from './views/hubViews'
 import { SquadView } from './views/squadView'
-import { PlayerDetail } from './views/squadView'
-import { DynamicBar } from './views/squadView'
 import { MarketView } from './views/marketView'
-import { ProspectCard } from './views/marketView'
 import { AcademyView } from './views/academyView'
-import { YouthRow } from './views/academyView'
 import { PlayerClubView } from './views/clubViews'
 import { ClubView } from './views/clubViews'
-import { FinanceBar } from './views/clubViews'
 import { CalendarView } from './views/calendarView'
 import { TransferApproachModal } from './views/transferViews'
 import { TransferOffersView } from './views/transferViews'
 import { ClubOffersView, IntroductionView, SetupView } from './views/setupViews'
 import { LandingPage, DocsPage } from './views/landingViews'
 import { TrainingView } from './views/trainingView'
+
+interface NavCategory {
+  id: 'portal' | 'squad' | 'recruitment' | 'matchDay' | 'club' | 'career'
+  label: string
+}
+
+interface SubNavItem {
+  id: View | 'continue'
+  label: string
+}
+
+type SubNavMap = Record<NavCategory['id'], SubNavItem[]>
+
+const navCategories: NavCategory[] = [
+  { id: 'portal', label: 'Portal' },
+  { id: 'squad', label: 'Squad' },
+  { id: 'recruitment', label: 'Recruitment' },
+  { id: 'matchDay', label: 'Match Day' },
+  { id: 'club', label: 'Club' },
+  { id: 'career', label: 'Career' },
+]
+
+const managerSubNav: SubNavMap = {
+  portal:     [{ id: 'hub', label: 'Overview' }, { id: 'club', label: 'Club' }, { id: 'academy', label: 'Staff' }],
+  squad:      [{ id: 'squad', label: 'First Team' }, { id: 'teamManagement', label: 'Team Sheet' }, { id: 'teamManagement', label: 'Training Units' }, { id: 'teamManagement', label: 'Squad Planner' }, { id: 'teamManagement', label: 'Dynamics' }, { id: 'squad', label: 'More' }],
+  recruitment:[{ id: 'market', label: 'Scouting' }, { id: 'transferHub', label: 'Shortlist' }, { id: 'transferHub', label: 'Transfer & Loan' }, { id: 'transferHub', label: 'Blocked' }, { id: 'market', label: 'Player Search' }, { id: 'market', label: 'Comparator' }, { id: 'market', label: 'More' }],
+  matchDay:   [{ id: 'hub', label: 'Overview' }, { id: 'tactics', label: 'Tactics' }, { id: 'teamManagement', label: 'Team Sheet' }, { id: 'tactics', label: 'Set Pieces' }, { id: 'tactics', label: 'Penalties' }, { id: 'calendar', label: 'Opposition Instructions' }, { id: 'calendar', label: 'Data Hub' }, { id: 'calendar', label: 'More' }],
+  club:       [{ id: 'calendar', label: 'Calendar' }, { id: 'calendar', label: 'Schedule' }, { id: 'club', label: 'Boards' }, { id: 'training', label: 'Training' }, { id: 'academy', label: 'Academy' }, { id: 'club', label: 'Vision' }],
+  career:     [{ id: 'hub', label: 'Profile' }, { id: 'hub', label: 'Achievements' }, { id: 'hub', label: 'Records' }],
+}
+
+function categoryForView(view: View, mode: CareerMode): NavCategory['id'] {
+  if (view === 'hub' || view === 'transferHub' || view === 'transfers') return 'recruitment'
+  if (view === 'squad' || view === 'teamManagement') return 'squad'
+  if (view === 'market' || view === 'academy') return 'recruitment'
+  if (view === 'club' || view === 'calendar' || view === 'training') return mode === 'player' ? 'career' : 'club'
+  if (view === 'tactics' || view === 'playerProfile') return 'matchDay'
+  if (view === 'player') return 'career'
+  return 'portal'
+}
+
 function App() {
   const savedCareer = readSavedCareer()
   const savedOnboarding = readSavedOnboarding()
@@ -105,7 +137,7 @@ function App() {
   const previousMinuteRef = useRef(savedCareer?.simMinute ?? 8 * 60)
   const careerMode = profile?.mode ?? 'manager'
   const [pageMode, setPageMode] = useState<'landing' | 'docs' | 'game'>('landing')
-  const visibleNavItems = careerMode === 'player' ? playerNavItems : navItems
+  const [activeCategory, setActiveCategory] = useState<NavCategory['id']>(() => categoryForView(savedCareer?.activeView ?? (restoredProfile?.mode === 'player' ? 'player' : 'hub'), (restoredProfile?.mode ?? 'manager')))
 
   useEffect(() => {
     backupLegacySaveIfNeeded()
@@ -195,11 +227,11 @@ function App() {
         if (teamScores) newEvents.push(`${nextMinute}' GOAL — ${profile!.clubShort}`)
         if (oppScores) newEvents.push(`${nextMinute}' Goal conceded — ${m.opponentShort}`)
         if ([10, 20, 30, 40, 55, 65, 75, 85].includes(nextMinute) && Math.random() < 0.4) {
-          if (tac.pressure === 'High' && tac.playStyle === 'High Press') newEvents.push(`${nextMinute}' High press`)
-          else if (mentDelta >= 1.2) newEvents.push(`${nextMinute}' All-out attack`)
-          else if (mentDelta <= -1.2) newEvents.push(`${nextMinute}' Low block holds`)
-          else if (tac.width === 'Wide') newEvents.push(`${nextMinute}' Wing play`)
-          else if (tac.playStyle === 'Possession') newEvents.push(`${nextMinute}' Possession`)
+          if (tac.pressure === 'High' && tac.playStyle === 'High Press') newEvents.push(`${nextMinute}' High press won it`)
+          else if (mentDelta >= 1.2) newEvents.push(`${nextMinute}' All-out attack wave`)
+          else if (mentDelta <= -1.2) newEvents.push(`${nextMinute}' Low block holding`)
+          else if (tac.width === 'Wide') newEvents.push(`${nextMinute}' Switched to wide play`)
+          else if (tac.playStyle === 'Possession') newEvents.push(`${nextMinute}' Working through the lines`)
         }
         if (newEvents.length > 8) newEvents.shift()
         const newPerfs = m.playerPerformances.map((pp) => {
@@ -247,7 +279,6 @@ function App() {
     showToast(`Matchday complete · ${result}`)
   }
 
-  // Countdown timer for match actions
   useEffect(() => {
     if (matchActionTimer <= 0 || !playerMatchPhase) return
     const timer = window.setTimeout(() => {
@@ -280,7 +311,7 @@ function App() {
       const completed = currentProgress + gain >= 100
       if (completed) {
         setPlayers((currentPlayers) => currentPlayers.map((player) => player.id === 900 ? { ...player, rating: Math.min(player.potential, player.rating + 1), form: Math.min(99, player.form + 3) } : player))
-        setSimulationEvents((current) => [{ id: Date.now(), label: 'Training completed', detail: 'Season block advanced.' }, ...current].slice(0, 8))
+        setSimulationEvents((current) => [{ id: Date.now(), label: 'Training block complete', detail: 'Season progression applied.' }, ...current].slice(0, 8))
       }
       return completed ? currentProgress + gain - 100 : currentProgress + gain
     })
@@ -289,16 +320,16 @@ function App() {
       setManagerTrust((current) => Math.max(0, Math.min(100, current + (simDay % 3 === 0 ? 1 : 0) + (clubOffer?.playerTrustModifier ?? 0))))
       if (simDay % 5 === 0 && !playerMatchPhase && dateIndex < seasonFixtures.length && !fixtureResults[dateIndex]) {
         const fixture = seasonFixtures[dateIndex]
-        setPlayerMatch({ opponent: fixture.opponent, opponentShort: fixture.short, minute: 0, rating: 6.0, goals: 0, assists: 0, passes: 0, choices: [], teamGoals: 0, opponentGoals: fixture.difficulty === 'High' ? 2 : 1, stamina: 100, lastEvent: 'The whistle is about to go.' })
+        setPlayerMatch({ opponent: fixture.opponent, opponentShort: fixture.short, minute: 0, rating: 6.0, goals: 0, assists: 0, passes: 0, choices: [], teamGoals: 0, opponentGoals: fixture.difficulty === 'High' ? 2 : 1, stamina: 100, lastEvent: 'Kick-off' })
         setPlayerMatchPhase('pre')
         setIsClockRunning(false)
       }
     } else if (simDay % 7 === 0 && !fixtureResults[dateIndex] && !managerMatch) {
       const fixture = seasonFixtures[dateIndex % seasonFixtures.length]
       const initialPerfs = players.map((p) => ({ id: p.id, rating: p.rating }))
-      setManagerMatch({ opponent: fixture.opponent, opponentShort: fixture.short, crest: fixture.crest, home: fixture.home, minute: 0, teamGoals: 0, opponentGoals: 0, possession: 50, shots: 0, opponentShots: 0, events: ['Kick-off.'], playerPerformances: initialPerfs })
+      setManagerMatch({ opponent: fixture.opponent, opponentShort: fixture.short, crest: fixture.crest, home: fixture.home, minute: 0, teamGoals: 0, opponentGoals: 0, possession: 50, shots: 0, opponentShots: 0, events: ['Kick-off'], playerPerformances: initialPerfs })
       setIsClockRunning(false)
-      setSimulationEvents((current) => [{ id: Date.now() + 2, label: 'Matchday', detail: `${fixture.opponent}, ${fixture.home ? 'home' : 'away'}.` }, ...current].slice(0, 8))
+      setSimulationEvents((current) => [{ id: Date.now() + 2, label: 'Matchday', detail: `${fixture.opponent}, ${fixture.home ? 'home' : 'away'}` }, ...current].slice(0, 8))
     }
     if (simDay % 3 === 0 && transferApproaches.length < 3 && Math.random() < 0.3) {
       const available = transferClubPool.filter((club) => !transferApproaches.some((a) => a.id === club.id))
@@ -345,6 +376,7 @@ function App() {
     setClubOffer(nextOffer)
     setIntroComplete(false)
     setActiveView(nextProfile.mode === 'player' ? 'player' : 'hub')
+    setActiveCategory(nextProfile.mode === 'player' ? 'career' : 'portal')
     setPlayers(nextPlayers)
     setShortlist([101, 110, 107, 109, 102, 108, 104, 106, 105, 103, 111, 112])
     setTransferList([])
@@ -471,7 +503,7 @@ function App() {
 
   const beginPlayerMatch = () => {
     if (!playerMatch) return
-    setPlayerMatch((current) => current ? { ...current, minute: 1, lastEvent: 'Kick-off.' } : current)
+    setPlayerMatch((current) => current ? { ...current, minute: 1, lastEvent: 'Kick-off' } : current)
     setPlayerMatchPhase('live')
   }
 
@@ -479,12 +511,12 @@ function App() {
     if (!playerMatch) return
     const isPositive = action === 'attack' || action === 'press' || action === 'encourage'
     const ratingGain = action === 'encourage' ? 0.2 : isPositive ? 0.25 : action === 'conserve' || action === 'hold' ? 0.12 : 0.18
-    const event = action === 'attack' ? 'Driving into space.'
-      : action === 'press' ? 'Pressing high — won the second ball.'
-      : action === 'risk' ? 'Attempting the through ball.'
-      : action === 'encourage' ? 'Post-match interview.'
-      : action === 'humble' ? 'Post-match interview.'
-      : 'Keeping it simple.'
+    const event = action === 'attack' ? 'Driving forward'
+      : action === 'press' ? 'Pressing high'
+      : action === 'risk' ? 'Attempting a through-ball'
+      : action === 'encourage' ? 'Post-match interview'
+      : action === 'humble' ? 'Post-match interview'
+      : 'Keeping it simple'
     const nextMatch: PlayerMatch = { ...playerMatch, rating: Math.min(10, Number((playerMatch.rating + ratingGain).toFixed(1))), passes: playerMatch.passes + (action === 'compose' || action === 'hold' ? 6 : 2), goals: playerMatch.goals + (action === 'risk' && playerMatch.minute >= 45 ? 1 : 0), teamGoals: playerMatch.teamGoals + (action === 'attack' && playerMatch.minute >= 45 ? 1 : 0), stamina: Math.max(54, playerMatch.stamina - (isPositive ? 10 : 5)), choices: [...playerMatch.choices, action], lastEvent: event }
     if (playerMatchPhase === 'interview') {
       finishPlayerMatch(nextMatch)
@@ -496,7 +528,7 @@ function App() {
   }
 
   const handleMatchActionTimeout = () => {
-    setPlayerMatch((m) => m ? { ...m, stamina: Math.max(30, m.stamina - 8), opponentGoals: m.opponentGoals + 1, lastEvent: 'Lost possession.', rating: Math.max(4, Number((m.rating - 0.3).toFixed(1))) } : m)
+    setPlayerMatch((m) => m ? { ...m, stamina: Math.max(30, m.stamina - 8), opponentGoals: m.opponentGoals + 1, lastEvent: 'Possession lost', rating: Math.max(4, Number((m.rating - 0.3).toFixed(1))) } : m)
   }
 
   const advancePlayerMatch = () => {
@@ -505,7 +537,7 @@ function App() {
     if (playerMatchPhase === 'halftime') {
       setPlayerMatchPhase('live')
       setMatchActionTimer(8)
-      setPlayerMatch((m) => m ? { ...m, lastEvent: 'Second half.' } : m)
+      setPlayerMatch((m) => m ? { ...m, lastEvent: 'Second half' } : m)
     }
     if (playerMatchPhase === 'fulltime') setPlayerMatchPhase('interview')
   }
@@ -527,7 +559,7 @@ function App() {
     setMatchActionTimer(0)
     setSimulationSpeed(1)
     setIsClockRunning(true)
-    showToast(`Matchday complete · performance ${finalMatch.rating.toFixed(1)}`)
+    showToast(`Matchday complete · ${finalMatch.rating.toFixed(1)} rating`)
   }
 
   const continueWeek = () => {
@@ -538,7 +570,7 @@ function App() {
     }
     if (managerMatch) { showToast('Matchday already in progress'); return }
     const initialPerfs = players.map((p) => ({ id: p.id, rating: p.rating }))
-    setManagerMatch({ opponent: currentFixture.opponent, opponentShort: currentFixture.short, crest: currentFixture.crest, home: currentFixture.home ?? true, minute: 0, teamGoals: 0, opponentGoals: 0, possession: 50, shots: 0, opponentShots: 0, events: ['Kick-off. The squad takes the pitch.'], playerPerformances: initialPerfs })
+    setManagerMatch({ opponent: currentFixture.opponent, opponentShort: currentFixture.short, crest: currentFixture.crest, home: currentFixture.home ?? true, minute: 0, teamGoals: 0, opponentGoals: 0, possession: 50, shots: 0, opponentShots: 0, events: ['Kick-off'], playerPerformances: initialPerfs })
     setIsClockRunning(false)
     showToast(`Matchday begins · ${currentFixture.opponent}`)
   }
@@ -565,7 +597,31 @@ function App() {
 
   const scoutProspect = (id: number) => {
     setScouted((current) => current.includes(id) ? current : [...current, id])
-    showToast('Scout report filed · ready for review')
+    showToast('Scout report filed')
+  }
+
+  const onSubManager = (outId: number, inId: number) => {
+    setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p))
+    setManagerMatch((m) => m ? { ...m, events: [...m.events, `SUB: ${players.find((p) => p.id === inId)?.name ?? ''} replaces ${players.find((p) => p.id === outId)?.name ?? ''}`].slice(-8), playerPerformances: [...m.playerPerformances.filter((pp) => pp.id !== outId), { id: inId, rating: players.find((p) => p.id === inId)?.rating ?? 70 }] } : m)
+    showToast('Substitution made')
+  }
+
+  const onSubSquad = (outId: number, inId: number) => {
+    setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p))
+    showToast('Substitution made')
+  }
+
+  const handleCategoryChange = (id: NavCategory['id']) => {
+    setActiveCategory(id)
+    const map: Record<NavCategory['id'], View> = {
+      portal: 'hub',
+      squad: 'squad',
+      recruitment: 'market',
+      matchDay: 'tactics',
+      club: 'club',
+      career: 'club',
+    }
+    setActiveView(map[id])
   }
 
   if (pageMode === 'landing') return <LandingPage onEnter={() => setPageMode('game')} onDocs={() => setPageMode('docs')} hasSavedCareer={!!profile} onContinue={() => setPageMode('game')} />
@@ -597,98 +653,111 @@ function App() {
     showToast(`${prospect?.name ?? 'Target'} added to active negotiations`)
   }
 
+  const setSpeed = (s: 0 | 1 | 2 | 20) => {
+    setSimulationSpeed(s)
+    if (s === 0) setIsClockRunning(false)
+    else setIsClockRunning(true)
+  }
+
+  // Date display
+  const dayLabel = `Day ${simDay}`
+  const dateDisplay = new Date(2026, 7, simDay)
+  const dateFormatted = `${dateDisplay.getDate().toString().padStart(2, '0')} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][dateDisplay.getMonth()]} ${dateDisplay.getFullYear()}`
+
+  const subNav = managerSubNav[activeCategory] ?? managerSubNav.portal
+  const profileInitial = profile.name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase() || 'NP'
+
   return (
     <div className="app-shell">
-      <aside className="app-sidebar">
-        <div className="sb-brand">NS</div>
-        <div className="app-sidebar-top" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1, width: '100%' }}>
-          {visibleNavItems.map((item) => (
+      {/* ── Top nav ───────────────────────────────────────────── */}
+      <header className="fm-topbar">
+        <button className="fm-brand" onClick={() => handleCategoryChange('portal')}>
+          <div className="fm-brand-mark">NS</div>
+          <div className="fm-brand-b"><b>NORTHSTAR FC</b><small>CAREER MODE</small></div>
+        </button>
+        <nav className="fm-tabs" aria-label="Primary">
+          {navCategories.map((cat) => (
             <button
-              key={item.id}
-              className={`sb-icon${activeView === item.id ? ' active' : ''}`}
-              onClick={() => setActiveView(item.id)}
-              title={item.label}
+              key={cat.id}
+              className={`fm-tab${activeCategory === cat.id ? ' active' : ''}`}
+              onClick={() => handleCategoryChange(cat.id)}
             >
-              <Icon>{item.icon}</Icon>
-              {item.id === 'market' && <span className="sb-badge">2</span>}
+              {cat.label} <span className="caret">▾</span>
+            </button>
+          ))}
+        </nav>
+        <div className="fm-top-right">
+          <label className="fm-search">
+            <Icon>⌕</Icon>
+            <input placeholder="Search players, clubs, scouts…" />
+            <kbd>⌘ K</kbd>
+          </label>
+          <button className="fm-user" onClick={() => setShowNotifications(!showNotifications)}>
+            <div className="fm-avatar" style={{ background: profile.primaryColor }}>{profileInitial}</div>
+            <span>{profile.name}</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ── Sub nav ───────────────────────────────────────────── */}
+      <nav className="fm-subnav" aria-label="Contextual">
+        <div className="fm-subnav-tabs">
+          {subNav.map((item, i) => (
+            <button
+              key={`${item.id}-${i}`}
+              className={`fm-subnav-tab${i === 0 ? ' active' : ''}`}
+              onClick={() => item.id !== 'continue' ? setActiveView(item.id) : undefined}
+            >
+              {item.label}
             </button>
           ))}
         </div>
-        <div className="sb-clock">
-          <span className={`sb-time ${isClockRunning ? '' : 'paused'}`}>{isClockRunning ? clockLabel : '||'}</span>
-          <div className="sb-speed">
-            <button className={simulationSpeed === 0 ? 'active' : ''} onClick={() => { setSimulationSpeed(0); setIsClockRunning(false) }} title="Pause" />
-            <button className={simulationSpeed === 1 && isClockRunning ? 'active' : ''} onClick={() => { setSimulationSpeed(1); setIsClockRunning(true) }} title="1x" />
-            <button className={simulationSpeed === 2 ? 'active' : ''} onClick={() => { setSimulationSpeed(2); setIsClockRunning(true) }} title="2x" />
-            <button className={simulationSpeed === 20 ? 'active' : ''} onClick={() => { setSimulationSpeed(20); setIsClockRunning(true) }} title="20x" />
-          </div>
+        <div className="fm-subnav-meta">
+          <span>{profile.clubName} · {profile.league}</span>
+          <span style={{ color: saveStatus === 'saving' ? 'var(--warn)' : 'var(--good)' }}>● {saveStatus === 'saving' ? 'Saving' : 'Saved'}</span>
+          <span>S<b>{seasonNumber}</b> · W<b>{weekNumber}</b></span>
         </div>
-        <button className="sb-icon" onClick={() => showToast(saveCareer() ? 'Saved' : 'Save failed')} title="Save">
-          <Icon>⌁</Icon>
-        </button>
-      </aside>
+      </nav>
 
+      {/* ── Main content ──────────────────────────────────────── */}
       <main className="main-content">
-        <div className="app-topbar">
-          <span className="tb-pill"><i className="dot" />{careerMode === 'player' ? 'PLAYER' : 'MANAGER'} · {profile.clubShort}</span>
-          {careerMode === 'player' && playerMatchPhase && (
-            <button className="tb-pill alert" onClick={() => setActiveView('player')}>
-              <span className="dot" /> Matchday
-            </button>
+        <div className="page">
+          {activeView === 'hub' && careerMode === 'manager' && (
+            <ManagerHubView
+              profile={profile}
+              players={players}
+              budget={budget}
+              weekNumber={weekNumber}
+              dateIndex={dateIndex}
+              fixtureResults={fixtureResults}
+              seasonNumber={seasonNumber}
+              managerMatch={managerMatch}
+              matchSpeed={simulationSpeed}
+              onSetSpeed={(s) => setSpeed(s as 0 | 1 | 2 | 20)}
+              onContinue={continueWeek}
+              onFinishMatch={() => finishManagerMatch()}
+              simulationEvents={simulationEvents}
+              onSubPlayer={onSubManager}
+              openModal={openModal}
+              setActiveView={setActiveView}
+            />
           )}
-          {savedAt && (
-            <span className="tb-pill" style={{ color: 'var(--text-dim)' }}>
-              <i className="dot" style={{ background: saveStatus === 'saving' ? 'var(--warn)' : 'var(--good)' }} />
-              {saveStatus === 'saving' ? 'Saving…' : 'Saved'}
-            </span>
+          {activeView === 'hub' && careerMode === 'player' && (
+            <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSpeed(s as 0 | 1 | 2 | 20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />
           )}
-          <div className="flex" />
-          <button className="tb-user" onClick={() => setShowNotifications(!showNotifications)}>
-            <div className="tb-avatar" style={{ background: profile.primaryColor, color: '#fff' }}>
-              {profile.name.split(' ').map((p) => p[0]).join('').slice(0, 2) || 'NP'}
-            </div>
-            <span>{profile.name}</span>
-          </button>
-          {showNotifications && (
-            <div className="notif">
-              <h4>Notifications</h4>
-              <div className="notif-row">
-                <div className="dot" />
-                <div>
-                  <b>Week {weekNumber} · {clockLabel}</b>
-                  <small>Simulator running at {simulationSpeed}× speed</small>
-                </div>
-              </div>
-              <div className="notif-row">
-                <div className="dot warn" />
-                <div>
-                  <b>{transferApproaches.length} transfer approaches</b>
-                  <small>{transferApproaches.filter((a) => a.stage === 'approaching').length} new this week</small>
-                </div>
-              </div>
-              <div className="notif-row">
-                <div className="dot" />
-                <div>
-                  <b>Day {simDay} · Season {seasonNumber}</b>
-                  <small>Training, fitness and form updating</small>
-                </div>
-              </div>
-            </div>
+          {activeView === 'player' && careerMode === 'player' && (
+            <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSpeed(s as 0 | 1 | 2 | 20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />
           )}
-        </div>
-        <div className="page stack-lg">
-          {activeView === 'hub' && (careerMode === 'player' ? <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} /> : <HubView profile={profile} budget={budget} dateIndex={dateIndex} fixtureResults={fixtureResults} players={players} managerMatch={managerMatch} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} onFinishMatch={() => finishManagerMatch()} onSubPlayer={(outId, inId) => { setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p)); setManagerMatch((m) => m ? { ...m, events: [...m.events, `SUB: ${players.find((p) => p.id === inId)?.name ?? ''} replaces ${players.find((p) => p.id === outId)?.name ?? ''}`].slice(-8), playerPerformances: [...m.playerPerformances.filter((pp) => pp.id !== outId), { id: inId, rating: players.find((p) => p.id === inId)?.rating ?? 70 }] } : m); showToast('Substitution made') }} continueWeek={continueWeek} openModal={openModal} setActiveView={setActiveView} />)}
-          {activeView === 'player' && <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />}
-          {activeView === 'squad' && <SquadView players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} openModal={openModal} />}
+          {activeView === 'squad' && <SquadView players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} openModal={openModal} /> }
           {activeView === 'transferHub' && <TransferHub prospects={prospects} shortlist={shortlist} transferList={transferList} loanList={loanList} blockedList={blockedList} budget={budget} transferComments={transferComments} transferReports={transferReports} onToggleShortlist={toggleShortlist} onMoveTab={movePlayerToList} onSendComment={sendTransferComment} onShowToast={showToast} />}
           {activeView === 'playerProfile' && <PlayerProfile player={selectedPlayer} setActiveView={setActiveView} onShowToast={showToast} />}
-          {activeView === 'teamManagement' && <TeamManagement players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} setActiveView={setActiveView} onSubPlayer={(outId, inId) => { setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p)); showToast('Substitution made') }} onShowToast={showToast} />}
-          {activeView === 'tactics' && <TacticsView players={players} tactics={tactics} onUpdateTactics={(t) => { setTactics(t); showToast(`Tactics set: ${t.formation} · ${t.mentality}`) }} setActiveView={setActiveView} onShowToast={showToast} />}
+          {activeView === 'teamManagement' && <TeamManagement players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} setActiveView={setActiveView} onSubPlayer={onSubSquad} onShowToast={showToast} />}
+          {activeView === 'tactics' && <TacticsView players={players} tactics={tactics} onUpdateTactics={(t) => { setTactics(t); showToast(`Tactics set · ${t.formation} · ${t.mentality}`) }} setActiveView={setActiveView} onShowToast={showToast} />}
           {activeView === 'market' && <MarketView filteredProspects={filteredProspects} search={search} setSearch={setSearch} marketFilter={marketFilter} setMarketFilter={setMarketFilter} shortlist={shortlist} scouted={scouted} negotiations={negotiations} toggleShortlist={toggleShortlist} scoutProspect={scoutProspect} startNegotiation={startNegotiation} budget={budget} openModal={openModal} />}
           {activeView === 'academy' && <AcademyView openModal={openModal} setActiveView={setActiveView} />}
           {activeView === 'club' && (careerMode === 'player' ? <PlayerClubView profile={profile} player={selectedPlayer} openModal={openModal} /> : <ClubView budget={budget} requestInvestment={requestInvestment} openModal={openModal} />)}
           {activeView === 'calendar' && <CalendarView profile={profile} dateIndex={dateIndex} fixtureResults={fixtureResults} simDay={simDay} weekNumber={weekNumber} seasonNumber={seasonNumber} />}
-          {activeView === 'transfers' && <TransferOffersView profile={profile} approaches={transferApproaches} clubOffer={clubOffer} onConsider={(a) => { setActiveTransferApproach(a); setShowTransferModal(true) }} onAccept={(a) => acceptClubTransfer(a)} onDecline={(a) => declineApproach(a)} onCounter={(a, demand) => { setTransferApproaches((c) => c.map((x) => x.id === a.id ? { ...x, stage: 'negotiating', counterDemand: demand, managerTrust: Math.min(100, x.managerTrust + 10), playerWage: Math.round(x.playerWage * 1.12), managerBudget: Math.round(x.managerBudget * 1.08) } : x)); showToast(`Counter-offer submitted. ${a.clubName}'s offer improved.`) }} />}
+          {activeView === 'transfers' && <TransferOffersView profile={profile} approaches={transferApproaches} clubOffer={clubOffer} onConsider={(a) => { setActiveTransferApproach(a); setShowTransferModal(true) }} onAccept={(a) => acceptClubTransfer(a)} onDecline={(a) => declineApproach(a)} onCounter={(a, demand) => { setTransferApproaches((c) => c.map((x) => x.id === a.id ? { ...x, stage: 'negotiating', counterDemand: demand, managerTrust: Math.min(100, x.managerTrust + 10), playerWage: Math.round(x.playerWage * 1.12), managerBudget: Math.round(x.managerBudget * 1.08) } : x)); showToast(`Counter submitted · ${a.clubName}`) }} />}
           {activeView === 'training' && <TrainingView profile={profile} players={players} trainingEnergy={trainingEnergy} lastTrainingDay={lastTrainingDay} simDay={simDay} doTrainingSession={doTrainingSession} />}
           {(activeView === 'transferHub' || activeView === 'teamManagement') && (
             <div style={{ marginTop: 16 }}>
@@ -697,6 +766,73 @@ function App() {
           )}
         </div>
       </main>
+
+      {/* ── Bottom dock ───────────────────────────────────────── */}
+      <footer className="fm-dock">
+        <button className="fm-dock-tab" onClick={continueWeek} title="Skip to next event">
+          ▶ Skip to next
+        </button>
+        <button className="fm-dock-tab primary" onClick={continueWeek} title="Continue">
+          Continue <Icon>→</Icon>
+        </button>
+        <div className="fm-clock">
+          <span className="fm-clock-time">{isClockRunning ? clockLabel : '— PAUSED —'}</span>
+          <span className="fm-clock-date">{dateFormatted}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+          <span className="kicker" style={{ marginRight: 8 }}>SPEED</span>
+          {([0, 1, 2, 20] as const).map((s, i) => (
+            <button
+              key={s}
+              className={`fm-dock-tab${simulationSpeed === s ? ' active' : ''}`}
+              style={{ minWidth: 32, justifyContent: 'center' }}
+              onClick={() => setSpeed(s)}
+              title={['', '1×', '2×', '20×'][i] || 'Pause'}
+            >
+              {['', '|>', '>>', '>>>'][i] || '❚❚'}
+            </button>
+          ))}
+        </div>
+        <button className="fm-dock-tab" onClick={() => showToast('Bookmarked')}>☆</button>
+        <button className="fm-dock-tab" onClick={() => setShowNotifications(!showNotifications)}>
+          ⚲ Notifications
+        </button>
+      </footer>
+
+      {/* Notifications popover */}
+      {showNotifications && (
+        <div className="notif">
+          <h4>Inbox · Today</h4>
+          <div className="notif-row">
+            <div className="dot" />
+            <div>
+              <b>Week {weekNumber} · {clockLabel}</b>
+              <small>Simulation running at {simulationSpeed}×</small>
+            </div>
+          </div>
+          <div className="notif-row">
+            <div className="dot warn" />
+            <div>
+              <b>{transferApproaches.length} transfer approaches</b>
+              <small>{transferApproaches.filter((a) => a.stage === 'approaching').length} new this week</small>
+            </div>
+          </div>
+          <div className="notif-row">
+            <div className="dot" />
+            <div>
+              <b>Day {simDay} · Season {seasonNumber}</b>
+              <small>Fitness &amp; form auto-updating</small>
+            </div>
+          </div>
+          <div className="notif-row">
+            <div className="dot" />
+            <div>
+              <b>{shortlist.length} scouted targets</b>
+              <small>Recruitment pipeline active</small>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && <div className="toast"><span className="toast-check">✓</span>{toast}</div>}
       {showTransferModal && activeTransferApproach && <TransferApproachModal approach={activeTransferApproach} profile={profile} onAccept={acceptClubTransfer} onDecline={declineApproach} onConsider={() => { setShowTransferModal(false); setActiveTransferApproach(null); setIsClockRunning(true); showToast(`You'll review ${activeTransferApproach.clubName}'s offer in your own time.`) }} onClose={() => { setShowTransferModal(false); setActiveTransferApproach(null); setIsClockRunning(true) }} />}

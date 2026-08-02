@@ -1,203 +1,212 @@
-import { PageHeader } from './pageHeader'
-import type { Player, View } from '../types'
+import type { Player } from '../types'
 import { positionColors } from '../data'
 import { formatMoney, Icon } from '../utils'
+import { useMemo, useState } from 'react'
 
 /* ──────────────────────────────────────────────────────────────
-   SQUAD — list of players + sticky detail panel
+   FM SQUAD — dense player table on left, squad feedback on right
    ────────────────────────────────────────────────────────────── */
 export function SquadView({ players, selectedPlayer, setSelectedPlayerId, openModal }: { players: Player[]; selectedPlayer: Player; setSelectedPlayerId: (id: number) => void; openModal: (title: string) => void }) {
-  const squadAvg = Math.round(players.reduce((t, p) => t + p.rating, 0) / players.length)
+  const [posFilter, setPosFilter] = useState<'All' | 'GK' | 'DEF' | 'MID' | 'ATT'>('All')
+  const positions = ['All', 'GK', 'DEF', 'MID', 'ATT'] as const
+  const filtered = useMemo(() => posFilter === 'All' ? players : players.filter((p) => {
+    if (posFilter === 'GK') return p.position === 'GK'
+    if (posFilter === 'DEF') return ['CB', 'LB', 'RB'].includes(p.position)
+    if (posFilter === 'MID') return ['DM', 'CM', 'AM', 'LM', 'RM', 'CAM', 'CDM'].includes(p.position)
+    return ['ST', 'LW', 'RW', 'CF'].includes(p.position)
+  }), [players, posFilter])
+
+  const ratings = players.map((p, i) => {
+    const r = p.rating
+    if (r >= 85) return 'exc'
+    if (r >= 80) return 'good'
+    if (r >= 75) return 'avg'
+    if (r >= 70) return 'below'
+    return 'poor'
+  })
+
+  const posRatings: Record<string, { count: number; avg: number; min: number; max: number }> = {}
+  ;['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST'].forEach((pos) => {
+    const subset = players.filter((p) => p.position === pos)
+    if (subset.length === 0) return
+    const avg = subset.reduce((t, p) => t + p.rating, 0) / subset.length
+    const min = Math.min(...subset.map((p) => p.rating))
+    const max = Math.max(...subset.map((p) => p.rating))
+    posRatings[pos] = { count: subset.length, avg: Math.round(avg), min, max }
+  })
+
   return (
     <>
-      <PageHeader
-        eyebrow={`Squad · ${players.length} players`}
-        title="Squad"
-        description={`Squad rating ${squadAvg} · Total value ${formatMoney(players.reduce((t, p) => t + p.value, 0))}`}
-        action={
-          <button className="btn btn-ghost" onClick={() => openModal('Team tactics')}>
-            <Icon>◎</Icon> Team tactics
+      <header className="page-header" style={{ marginBottom: 'var(--s-4)' }}>
+        <div>
+          <span className="kicker">Squad · 35 players · Average 26 yo</span>
+          <h1>Brighton · First Team</h1>
+          <p>Select a player to view their report. Transfer & loan lists sit on the Recruitment tab.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
+          <button className="btn btn-ghost" onClick={() => openModal('Export report')}>
+            <Icon>↓</Icon> Export
           </button>
-        }
-      />
+          <button className="btn btn-primary" onClick={() => openModal('Squad actions')}>
+            Squad actions <Icon>→</Icon>
+          </button>
+        </div>
+      </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(320px, 0.9fr)', gap: 'var(--s-5)', alignItems: 'start' }}>
+      <div className="squad-grid">
+        {/* Left: player table */}
         <section className="panel flush">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--s-4) var(--s-5)', borderBottom: '1px solid var(--line)' }}>
-            <div className="filter-tabs" style={{ display: 'flex', gap: 4 }}>
-              <button className="btn btn-sm btn-ghost active" style={{ background: 'var(--surface-2)' }}>All players <span className="muted">{players.length}</span></button>
-              <button className="btn btn-sm btn-ghost">Starting XI <span className="muted">11</span></button>
-              <button className="btn btn-sm btn-ghost">Development <span className="muted">4</span></button>
+          <div className="panel-head" style={{ gap: 'var(--s-4)' }}>
+            <div className="squad-tabs">
+              {positions.map((pos) => (
+                <button
+                  key={pos}
+                  className={`squad-tab${posFilter === pos ? ' active' : ''}`}
+                  onClick={() => setPosFilter(pos)}
+                >
+                  {pos} <span className="muted">{
+                    pos === 'All' ? players.length :
+                    pos === 'GK' ? players.filter((p) => p.position === 'GK').length :
+                    pos === 'DEF' ? players.filter((p) => ['CB','LB','RB'].includes(p.position)).length :
+                    pos === 'MID' ? players.filter((p) => ['DM','CM','AM','LM','RM','CAM','CDM'].includes(p.position)).length :
+                    players.filter((p) => ['ST','LW','RW','CF'].includes(p.position)).length
+                  }</span>
+                </button>
+              ))}
             </div>
-            <button className="btn btn-sm btn-ghost">Sort: OVR <Icon>⌄</Icon></button>
-          </div>
-          <div style={{ padding: '0 var(--s-5) var(--s-4)' }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(200px, 2.4fr) 56px 56px 80px 130px 100px 24px',
-              gap: 'var(--s-3)',
-              color: 'var(--text-dim)',
-              fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
-              padding: 'var(--s-3) var(--s-4)',
-            }}>
-              <span>Player</span><span>Pos</span><span>OVR</span><span>Form</span><span>Fitness</span><span>Role</span><span></span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--s-2)', alignItems: 'center' }}>
+              <select className="btn btn-ghost btn-sm" defaultValue="ability">
+                <option value="ability">Sort: Ability ↓</option>
+                <option>Sort: Potential ↓</option>
+                <option>Sort: Age ↑</option>
+                <option>Sort: Value ↓</option>
+              </select>
+              <button className="btn btn-icon btn-ghost">⚙</button>
             </div>
-            {players.map((player) => (
-              <button
-                className={`squad-row${selectedPlayer.id === player.id ? ' selected' : ''}`}
-                key={player.id}
-                onClick={() => setSelectedPlayerId(player.id)}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(200px, 2.4fr) 56px 56px 80px 130px 100px 24px',
-                  gap: 'var(--s-3)',
-                  alignItems: 'center',
-                  width: '100%',
-                  padding: 'var(--s-3) var(--s-4)',
-                  border: 0,
-                  borderTop: '1px solid var(--line)',
-                  textAlign: 'left',
-                  background: selectedPlayer.id === player.id ? 'var(--accent-dim)' : 'transparent',
-                  borderLeft: selectedPlayer.id === player.id ? '3px solid var(--accent)' : '3px solid transparent',
-                  color: 'inherit',
-                  transition: 'background 0.15s',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-3)', minWidth: 0 }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 8,
-                    background: player.color, color: '#fff', fontWeight: 700, fontSize: 12,
-                    display: 'grid', placeItems: 'center', flexShrink: 0,
-                  }}>{player.initials}</div>
-                  <div style={{ minWidth: 0 }}>
-                    <b style={{ fontSize: 'var(--t-sm)', fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.name}</b>
-                    <small className="muted" style={{ fontSize: 'var(--t-xs)' }}>{player.age} yrs · {player.contract}yr contract</small>
-                  </div>
-                </div>
-                <span className="chip">{player.position}</span>
-                <strong className="accent mono" style={{ fontSize: 'var(--t-md)' }}>{player.rating}</strong>
-                <span className="mono" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--t-sm)' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 3, background: player.form >= 85 ? 'var(--good)' : 'var(--text-dim)' }}></span>
-                  {player.form}
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <i style={{ display: 'block', height: 4, width: 60, background: 'var(--accent)', borderRadius: 2 }} />
-                  <b className="mono" style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)' }}>{player.fitness}%</b>
-                </span>
-                <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>{player.role}</span>
-                <Icon>›</Icon>
-              </button>
-            ))}
           </div>
+
+          <table className="fm-table">
+            <thead>
+              <tr>
+                <th className="rank">#</th>
+                <th>Info</th>
+                <th>Player</th>
+                <th>Nat</th>
+                <th>Age</th>
+                <th>Pre</th>
+                <th>Morale</th>
+                <th>Con</th>
+                <th>Shp</th>
+                <th>Ability</th>
+                <th>Potential</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((p, i) => {
+                const ratingClass = ratings[i]
+                return (
+                  <tr
+                    key={p.id}
+                    className={selectedPlayer.id === p.id ? 'selected' : ''}
+                    onClick={() => setSelectedPlayerId(p.id)}
+                  >
+                    <td className="rank">{i + 1}</td>
+                    <td className="num">{p.position}</td>
+                    <td className="name">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 24, height: 24, borderRadius: 4, background: p.color, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 10 }}>{p.initials}</div>
+                        <div>
+                          <div>{p.name}</div>
+                          {p.role && <small className="muted" style={{ fontSize: 10 }}>{p.role}</small>}
+                        </div>
+                      </div>
+                    </td>
+                    <td>{p.flag ?? 'HQ'}</td>
+                    <td className="num">{p.age}</td>
+                    <td>
+                      <span className="pill">{p.fitness >= 90 ? '●' : p.fitness >= 80 ? '◐' : '○'} {Math.round(p.fitness)}%</span>
+                    </td>
+                    <td className="num">{p.morale}</td>
+                    <td className="num">-</td>
+                    <td className="num">-</td>
+                    <td><span className={`rating ${ratingClass}`}>{p.rating}</span></td>
+                    <td><span className="rating">{p.potential}</span></td>
+                    <td className="num">{formatMoney(p.value)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </section>
 
-        <PlayerDetail player={selectedPlayer} openModal={openModal} />
+        {/* Right rail: squad feedback, medical, role */}
+        <aside className="squad-side">
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <span className="kicker">Squad Feedback</span>
+                <h3 style={{ fontSize: 'var(--t-md)', marginTop: 2 }}>From the staff</h3>
+              </div>
+            </div>
+            <div className="panel-rows">
+              <div className="panel-row">
+                <span className="row-icon accent">✦</span>
+                <div className="row-text"><b className="accent">Board</b><small>Unchecked</small></div>
+                <span className="pill">—</span>
+              </div>
+              <div className="panel-row">
+                <span className="row-icon">⚐</span>
+                <div className="row-text"><b>Supporters</b><small>Buzzing</small></div>
+                <span className="pill good">+8%</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <span className="kicker">Medical Centre</span>
+                <h3 style={{ fontSize: 'var(--t-md)', marginTop: 2 }}>Casualties</h3>
+              </div>
+              <button className="kicker accent" style={{ background: 'transparent' }}>+ 5 others</button>
+            </div>
+            <div className="panel-rows">
+              <div className="panel-row">
+                <span className="row-icon accent">!</span>
+                <div className="row-text"><b>6 players injured</b><small>Adam Webster · Solly March · 4 others</small></div>
+              </div>
+              <div className="panel-row">
+                <span className="row-icon">⏿</span>
+                <div className="row-text"><b>2 players ill</b><small>Moises Caicedo (back)</small></div>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <span className="kicker">Position depth</span>
+                <h3 style={{ fontSize: 'var(--t-md)', marginTop: 2 }}>Squad Planner</h3>
+              </div>
+              <button className="kicker accent" style={{ background: 'transparent' }}>Open ›</button>
+            </div>
+            <div className="panel-rows" style={{ overflowY: 'auto', maxHeight: 360 }}>
+              {Object.entries(posRatings).map(([pos, info]) => (
+                <div key={pos} className="panel-row">
+                  <span className="row-icon" style={{ background: positionColors[pos as keyof typeof positionColors] ?? 'var(--surface-3)', color: '#fff', fontWeight: 700, fontSize: 9 }}>{pos}</span>
+                  <div className="row-text"><b>{info.count} {pos === 'GK' ? 'goalkeepers' : pos === 'CB' ? 'centre-backs' : pos.includes('B') ? 'full-backs' : pos === 'CM' || pos === 'DM' ? 'midfielders' : 'forwards'}</b><small>Avg <b className="mono">{info.avg}</b> · <span className="muted">{info.min}–{info.max}</span></small></div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </aside>
       </div>
     </>
   )
 }
 
-/* ──────────────────────────────────────────────────────────────
-   PLAYER DETAIL — sticky right rail
-   ────────────────────────────────────────────────────────────── */
-export function PlayerDetail({ player, openModal }: { player: Player; openModal: (title: string) => void }) {
-  return (
-    <aside className="panel flush" style={{ position: 'sticky', top: 88, maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
-      <div style={{
-        position: 'relative',
-        minHeight: 160,
-        background: `linear-gradient(135deg, ${player.color}, #1a2140 100%)`,
-        display: 'flex', alignItems: 'flex-end',
-        padding: 'var(--s-5)',
-        overflow: 'hidden',
-      }}>
-        <span style={{
-          position: 'absolute', right: 16, top: 8,
-          fontSize: 80, fontWeight: 800, color: 'rgba(255,255,255,0.15)',
-          letterSpacing: '-0.04em', pointerEvents: 'none',
-        }}>{player.shirtNumber ?? ''}</span>
-        <div style={{
-          width: 60, height: 60, borderRadius: '50%',
-          border: '2px solid rgba(255,255,255,0.2)',
-          background: 'rgba(255,255,255,0.12)', color: '#fff',
-          fontWeight: 700, fontSize: 18,
-          display: 'grid', placeItems: 'center', flexShrink: 0,
-        }}>{player.initials}</div>
-        <div style={{ marginLeft: 'var(--s-4)', flex: 1, minWidth: 0 }}>
-          <span className="kicker" style={{ color: 'rgba(255,255,255,0.7)' }}>{player.position} · {player.age} years</span>
-          <h2 style={{ fontSize: 'var(--t-xl)', fontWeight: 700, color: '#fff', letterSpacing: '-0.01em', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.name}</h2>
-          <small style={{ color: 'rgba(255,255,255,0.6)', fontSize: 'var(--t-xs)' }}>{player.club ?? 'NORTHSTAR FC'} · {player.flag ?? 'HQ'}</small>
-        </div>
-      </div>
-
-      <div style={{ padding: 'var(--s-5)' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', paddingBottom: 'var(--s-4)', borderBottom: '1px solid var(--line)', gap: 'var(--s-3)' }}>
-          <div>
-            <span className="kicker">Overall</span>
-            <b className="mono" style={{ fontSize: 'var(--t-xl)', fontWeight: 700, display: 'block' }}>{player.rating}</b>
-          </div>
-          <div>
-            <span className="kicker">Potential</span>
-            <b className="mono accent" style={{ fontSize: 'var(--t-xl)', fontWeight: 700, display: 'block' }}>{player.potential}</b>
-          </div>
-          <div>
-            <span className="kicker">Value</span>
-            <b className="mono" style={{ fontSize: 'var(--t-md)', fontWeight: 700, display: 'block' }}>{formatMoney(player.value)}</b>
-          </div>
-        </div>
-
-        <div style={{ paddingTop: 'var(--s-4)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--s-2)' }}>
-            <b style={{ fontSize: 'var(--t-sm)', fontWeight: 700 }}>Form & fitness</b>
-          </div>
-          <div className="stack" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-3)' }}>
-            <DynamicBar label="Form" value={player.form} color="purple" />
-            <DynamicBar label="Morale" value={player.morale} color="lime" />
-            <DynamicBar label="Match fitness" value={player.fitness} color="cyan" />
-          </div>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--line)', marginTop: 'var(--s-5)', paddingTop: 'var(--s-4)' }}>
-          <b style={{ fontSize: 'var(--t-sm)', fontWeight: 700, display: 'block', marginBottom: 'var(--s-3)' }}>Key attributes</b>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--s-3) var(--s-4)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span className="muted" style={{ fontSize: 'var(--t-xs)', fontWeight: 600 }}>PACE</span>
-              <b className="mono" style={{ fontSize: 'var(--t-sm)', fontWeight: 600 }}>{player.skills.pace}</b>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span className="muted" style={{ fontSize: 'var(--t-xs)', fontWeight: 600 }}>SHOOTING</span>
-              <b className="mono" style={{ fontSize: 'var(--t-sm)', fontWeight: 600 }}>{player.skills.shooting}</b>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span className="muted" style={{ fontSize: 'var(--t-xs)', fontWeight: 600 }}>PASSING</span>
-              <b className="mono" style={{ fontSize: 'var(--t-sm)', fontWeight: 600 }}>{player.skills.passing}</b>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span className="muted" style={{ fontSize: 'var(--t-xs)', fontWeight: 600 }}>PHYSICAL</span>
-              <b className="mono" style={{ fontSize: 'var(--t-sm)', fontWeight: 600 }}>{player.skills.physical}</b>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 'var(--s-2)', marginTop: 'var(--s-5)' }}>
-          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => openModal(`Develop ${player.name}`)}>
-            Set development <Icon>→</Icon>
-          </button>
-          <button className="btn btn-icon-square" onClick={() => openModal(`Player actions: ${player.name}`)}>
-            ⋯
-          </button>
-        </div>
-      </div>
-    </aside>
-  )
-}
-
-/* ──────────────────────────────────────────────────────────────
-   DynamicBar — used by detail + development panel
-   ────────────────────────────────────────────────────────────── */
-export function DynamicBar({ label, value, color }: { label: string; value: number; color: string }) {
-  const accentColor = color === 'lime' || color === 'purple' ? 'var(--accent)' : 'var(--accent)'
+export function DynamicBar({ label, value }: { label: string; value: number; color?: string }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -205,7 +214,7 @@ export function DynamicBar({ label, value, color }: { label: string; value: numb
         <b className="mono" style={{ fontSize: 'var(--t-sm)', fontWeight: 600 }}>{value}</b>
       </div>
       <div className="bar">
-        <i style={{ width: `${Math.min(100, value)}%`, background: accentColor }} />
+        <i style={{ width: `${Math.min(100, value)}%`, background: 'var(--accent)' }} />
       </div>
     </div>
   )
