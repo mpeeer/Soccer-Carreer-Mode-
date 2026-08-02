@@ -28,10 +28,10 @@ export function CalendarView({ profile, dateIndex, fixtureResults, simDay, weekN
   while (cells.length % 7 !== 0) cells.push({ day: null })
 
   const legendItems = [
-    { label: 'Matchday', color: 'rgba(123,63,242,0.30)', border: 'rgba(123,63,242,0.40)' },
+    { label: 'Matchday', color: 'rgba(4,120,87,0.30)', border: 'rgba(4,120,87,0.40)' },
     { label: 'Training', color: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.10)' },
     { label: 'Deadline', color: 'rgba(249,115,22,0.18)', border: 'rgba(249,115,22,0.40)' },
-    { label: 'Today', color: 'rgba(123,63,242,0.40)', border: 'rgba(123,63,242,0.60)' },
+    { label: 'Today', color: 'rgba(4,120,87,0.40)', border: 'rgba(4,120,87,0.60)' },
   ]
 
   return (
@@ -94,7 +94,7 @@ export function CalendarView({ profile, dateIndex, fixtureResults, simDay, weekN
             ].filter(Boolean).join(' ')
             return (
               <div key={i} className={styleClasses} style={{
-                background: isToday ? 'var(--accent-dim)' : (isMatch ? (result ? 'var(--surface-2)' : 'linear-gradient(180deg, var(--accent-dim) 0%, rgba(123,63,242,0) 80%)') : 'transparent'),
+                background: isToday ? 'var(--accent-dim)' : (isMatch ? (result ? 'var(--surface-2)' : 'linear-gradient(180deg, var(--accent-dim) 0%, rgba(4,120,87,0) 80%)') : 'transparent'),
                 borderColor: isToday ? 'var(--accent)' : 'var(--line)',
               }}>
                 {cell.day != null && (

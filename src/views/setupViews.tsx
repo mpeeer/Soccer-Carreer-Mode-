@@ -4,55 +4,108 @@ import type { CareerMode, Position, CareerProfile, ClubOffer, OnboardingSave } f
 import { formatMoney, createLegacyClubOffer, Icon } from '../utils'
 
 export function ClubOffersView({ onboarding, onAccept }: { onboarding: OnboardingSave; onAccept: (offer: ClubOffer) => void }) {
+  const [selected, setSelected] = useState(0)
+  const offers = onboarding.offers
+  const current = offers[Math.min(selected, offers.length - 1)] ?? null
+  const isManager = onboarding.mode === 'manager'
   return (
     <div className="center-shell">
       <header className="brand-row" style={{ position: 'absolute', top: 'var(--s-7)', left: 0, right: 0, padding: '0 var(--s-7)' }}>
         <div className="brand-mark">NS</div>
         <div><b>NORTHSTAR FC</b><small className="kicker" style={{ display: 'block' }}>Career mode</small></div>
       </header>
-      <main className="center-card" style={{ maxWidth: 980 }}>
-        <div>
-          <span className="pill live" style={{ marginBottom: 'var(--s-3)' }}><i /> Club offers</span>
-          <span className="kicker" style={{ display: 'block' }}>Season 01 · Your first appointment</span>
-          <h1>Choose your club</h1>
-          <p className="muted" style={{ lineHeight: 1.6 }}>{onboarding.name}, three clubs have submitted offers for your appointment. Review each one before deciding.</p>
+
+      <main className="co-shell">
+        {/* Header */}
+        <div className="co-head">
+          <div>
+            <span className="co-tag"><i /> Club offers</span>
+            <span className="co-kicker">Season 01 · Your first appointment</span>
+            <h1 className="co-title">Choose your club</h1>
+            <p className="co-sub">{onboarding.name}, three clubs have submitted offers for your appointment. Review each one before deciding.</p>
+          </div>
+          <div className="co-progress" aria-hidden="true">
+            <b className="mono">{offers.length > 0 ? String((selected % offers.length) + 1).padStart(2, '0') : '00'}</b>
+            <span>/ {String(offers.length).padStart(2, '0')}</span>
+          </div>
         </div>
-        <div className="offer-grid">
-          {onboarding.offers.map((offer, index) => (
-            <article
-              className="offer"
-              key={offer.id}
-              style={{ '--offer-primary': offer.primaryColor, '--offer-secondary': offer.secondaryColor } as CSSProperties}
-            >
-              <div className="offer-head">
-                <span className="kicker">0{index + 1}</span>
-                <span className="kicker">{offer.league}</span>
+
+        {!current ? (
+          <div className="co-empty">
+            <span className="co-kicker">No offers yet</span>
+            <p className="muted">Club offers will appear here shortly.</p>
+          </div>
+        ) : (
+          <div className="co-body">
+            {/* Left rail — selectable club list */}
+            <div className="co-list" role="tablist" aria-label="Club offers">
+              {offers.map((offer, i) => (
+                <button
+                  key={offer.id}
+                  role="tab"
+                  aria-selected={i === selected}
+                  className={`co-option${i === selected ? ' selected' : ''}`}
+                  onClick={() => setSelected(i)}
+                >
+                  <span className="co-index mono">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="co-avatar" style={{ background: `linear-gradient(135deg, ${offer.primaryColor}, ${offer.secondaryColor})` }}>{offer.clubShort}</span>
+                  <span className="co-option-text">
+                    <b>{offer.clubName}</b>
+                    <small>{offer.league} · {offer.identity}</small>
+                  </span>
+                  <span className="co-chevron">→</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Right rail — detail */}
+            <section className="co-detail">
+              <div
+                className="co-detail-hero"
+                style={{ background: `linear-gradient(135deg, ${current.primaryColor}, ${current.secondaryColor})` }}
+              >
+                <span className="co-detail-index mono">{String(offers.indexOf(current) + 1).padStart(2, '0')}</span>
+                <span className="co-detail-crest">{current.clubShort}</span>
+                <span className="co-detail-league">{current.league}</span>
               </div>
-              <div className="offer-crest" style={{ background: `linear-gradient(135deg, ${offer.primaryColor}, ${offer.secondaryColor})` }}>{offer.clubShort}</div>
-              <div className="offer-body">
-                <span className="kicker">{offer.identity}</span>
-                <h2>{offer.clubName}</h2>
-                <p className="desc">{offer.description}</p>
-                <div className="offer-meta">
-                  <div><span>Style</span><b>{offer.philosophy}</b></div>
-                  <div><span>{onboarding.mode === 'manager' ? 'Budget' : 'Pathway'}</span><b>{onboarding.mode === 'manager' ? formatMoney(offer.managerBudget) : offer.playerRole}</b></div>
+              <div className="co-detail-body">
+                <span className="co-kicker">{current.identity}</span>
+                <h2 className="co-detail-name">{current.clubName}</h2>
+                <p className="co-detail-desc">{current.description}</p>
+
+                <div className="co-stats">
+                  <div className="co-stat"><span>Style</span><b>{current.philosophy}</b></div>
+                  <div className="co-stat"><span>{isManager ? 'Budget' : 'Pathway'}</span><b>{isManager ? formatMoney(current.managerBudget) : current.playerRole}</b></div>
+                  {isManager ? (
+                    <div className="co-stat"><span>Board trust</span><b>{current.managerTrust}%</b></div>
+                  ) : (
+                    <div className="co-stat"><span>Wage</span><b>{formatMoney(current.playerWage)}/wk</b></div>
+                  )}
+                  <div className="co-stat"><span>League</span><b>{current.league}</b></div>
                 </div>
-                <div className="offer-tradeoffs">
-                  <div><b>Advantages</b>{offer.pros.map((item) => <span key={item}>+ {item}</span>)}</div>
-                  <div><b>Trade-offs</b>{offer.cons.map((item) => <span key={item}>− {item}</span>)}</div>
+
+                <div className="co-rows">
+                  <div className="co-col">
+                    <span className="co-col-head">Advantages</span>
+                    {current.pros.map((item) => <span className="co-item good" key={item}>+ {item}</span>)}
+                  </div>
+                  <div className="co-col">
+                    <span className="co-col-head">Trade-offs</span>
+                    {current.cons.map((item) => <span className="co-item bad" key={item}>− {item}</span>)}
+                  </div>
                 </div>
-              </div>
-              <div className="offer-foot">
-                <button className="btn btn-primary btn-block" onClick={() => onAccept(offer)}>
-                  {onboarding.acceptedOffer?.id === offer.id ? 'Continue with this club' : `Accept ${offer.clubName}`} <Icon>→</Icon>
+
+                <button className="btn btn-primary btn-block co-accept" onClick={() => onAccept(current)}>
+                  {onboarding.acceptedOffer?.id === current.id ? 'Continue with this club' : `Accept ${current.clubName}`} <Icon>→</Icon>
                 </button>
               </div>
-            </article>
-          ))}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'var(--s-7)', fontSize: 'var(--t-xs)' }} className="muted">
+            </section>
+          </div>
+        )}
+
+        <div className="co-foot">
           <span>Offers are locked to this career and saved locally.</span>
-          <span>{onboarding.mode === 'manager' ? 'Manager appointment' : 'Player contract'} · Season 1</span>
+          <span>{isManager ? 'Manager appointment' : 'Player contract'} · Season 1</span>
         </div>
       </main>
     </div>

@@ -1,19 +1,18 @@
 import { PageHeader } from "./pageHeader"
-import type { ReactNode } from "react"
 import { DynamicBar } from "./squadView"
-import type { CSSProperties } from 'react'
 import type { CareerProfile, Player, MatchPhase, PlayerMatch, ManagerMatch, SimulationEvent, View } from '../types'
-import { seasonFixtures, positionColors } from '../data'
+import { seasonFixtures } from '../data'
 import { formatMoney, Icon } from '../utils'
 
 /* ──────────────────────────────────────────────────────────────
-   MANAGER HUB — FM-style 4-column dashboard
+   MANAGER HUB — minimal flat dashboard
+   identity band → next/inbox/league → metrics band → lower row
    ────────────────────────────────────────────────────────────── */
 export function ManagerHubView({ profile, players, budget, weekNumber, dateIndex, fixtureResults, seasonNumber, managerMatch, matchSpeed, onSetSpeed, onContinue, onFinishMatch, simulationEvents, onSubPlayer, openModal, setActiveView }: { profile: CareerProfile; players: Player[]; budget: number; weekNumber: number; dateIndex: number; fixtureResults: Record<number, string>; seasonNumber: number; managerMatch: ManagerMatch | null; matchSpeed: number; onSetSpeed: (s: number) => void; onContinue: () => void; onFinishMatch: () => void; simulationEvents: SimulationEvent[]; onSubPlayer: (outId: number, inId: number) => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
   if (managerMatch) return <ManagerMatchdayPanel match={managerMatch} profile={profile} players={players} matchSpeed={matchSpeed} onSetSpeed={onSetSpeed} onFinish={onFinishMatch} onSubPlayer={onSubPlayer} />
   const fixture = seasonFixtures[dateIndex]
   const currentResult = fixtureResults[dateIndex]
-  // Demo premium-league table data for the right rail
+  // Representative premium-league table data for the right rail
   const leagueTable = [
     { pos: 1, name: 'Bournemouth', crest: '#bd2031', p: 38, w: 6, d: 4, l: 3, gd: 14, pts: 22 },
     { pos: 2, name: 'Arsenal', crest: '#ef0107', p: 38, w: 6, d: 3, l: 2, gd: 9, pts: 21 },
@@ -21,48 +20,103 @@ export function ManagerHubView({ profile, players, budget, weekNumber, dateIndex
     { pos: 4, name: 'Fulham', crest: '#000000', p: 38, w: 5, d: 4, l: 4, gd: 5, pts: 19 },
     { pos: 5, name: 'Crystal Palace', crest: '#1b458f', p: 38, w: 5, d: 4, l: 4, gd: 4, pts: 19 },
     { pos: 6, name: 'York City', crest: '#ff7a00', p: 38, w: 5, d: 3, l: 5, gd: 2, pts: 18 },
-    { pos: 7, name: 'SPAL', crest: '#3aaf5a', p: 38, w: 5, d: 3, l: 5, gd: 1, pts: 18 },
-    { pos: 8, name: 'Forrest', crest: '#dd0000', p: 38, w: 5, d: 2, l: 6, gd: 0, pts: 17 },
+    { pos: 7, name: 'Watford', crest: '#f7b500', p: 38, w: 5, d: 3, l: 5, gd: 1, pts: 18 },
+    { pos: 8, name: 'Forest', crest: '#dd0000', p: 38, w: 5, d: 2, l: 6, gd: 0, pts: 17 },
     { pos: 9, name: 'Newcastle', crest: '#241f20', p: 38, w: 4, d: 4, l: 5, gd: -1, pts: 16 },
     { pos: 10, name: 'Bromley', crest: '#000033', p: 38, w: 4, d: 4, l: 5, gd: -3, pts: 16 },
     { pos: 11, name: 'Derby', crest: '#000000', p: 38, w: 4, d: 4, l: 5, gd: -4, pts: 16 },
     { pos: 12, name: 'Luton Town', crest: '#f78f1e', p: 38, w: 4, d: 3, l: 6, gd: -6, pts: 15 },
   ]
-  // Messages data
+  // Representative inbox
   const messages = [
-    { id: 'm1', from: 'George Lynch', subject: 'Boardroom focus', body: 'Boardroom clearance far from sources. The board has accepted your admission for the first time in a decade. No drilling rights, just a system.', date: 'Sat 26, May', time: '11:00', unread: true },
-    { id: 'm2', from: 'Simon Newton', subject: 'Recruitment Focus Update', body: 'Six scouts have published an article on a few of the players reporting the Premier League this morning. Cross objected clause is fixed in the important things for compensation, lexing on average 44.06 %, testing each 14 % player side of the bracket.', date: 'Sat 26, May', time: '10:01', unread: true },
-    { id: 'm3', from: 'Rufus Emerson', subject: 'Club Dynamics', body: 'A belief in your mans English is elevated to be recall split from active volunteering community connections more routinely. Boiler to features experiment in with mediation since.', date: 'Sun 27, May', time: '03:45', unread: true },
-    { id: 'm4', from: 'James Field', subject: 'Brighton: Training Week in Review', body: 'Brighton forward & focus Albion training schedule for the coming up.', date: 'Fri 25, May', time: '16:30', unread: false },
-    { id: 'm5', from: 'Andrew Cuffin', subject: 'Brighton Tactics && Inducement', body: 'Brighton youth scouts have produced an admission reporting the Premier League this morning.', date: 'Fri 25, May', time: '18:20', unread: false },
-    { id: 'm6', from: 'Andrew Cuffin', subject: 'Brighton: Tactician Overview Update', body: 'By Sports News Have Published an article to a few of the players reporting the Premier League this morning.', date: 'Fri 25, May', time: '20:30', unread: false },
-    { id: 'm7', from: 'Simon Newton', subject: 'Premier League Player of the Week', body: 'Top 3 candidates for weekly honours went 6-3f-2da 3-2 wrote. Footballer Cover.', date: 'Fri 25, May', time: '20:30', unread: false },
+    { id: 'm1', from: 'George Lynch', subject: 'Boardroom focus', body: 'The board has ratified your appointment. Season objective confirmed: a top-six finish with a net spend below €40M.', date: 'Sat 26, May', time: '11:00', unread: true },
+    { id: 'm2', from: 'Simon Newton', subject: 'Recruitment focus update', body: 'The scouting network filed three new reports this morning. Average recommendation rating 4.4/5 across the shortlist.', date: 'Sat 26, May', time: '10:01', unread: true },
+    { id: 'm3', from: 'Rufus Emerson', subject: 'Club dynamics', body: 'Squad morale is strong after a full week of training. Two senior players have offered to mentor academy graduates.', date: 'Sun 27, May', time: '03:45', unread: true },
+    { id: 'm4', from: 'James Field', subject: 'Training week in review', body: 'Excellent intensity across all units this week. Fitness is up across the squad with no injuries reported.', date: 'Fri 25, May', time: '16:30', unread: false },
+    { id: 'm5', from: 'Andrew Cuffin', subject: 'Tactics & instruction', body: 'Opposition report filed: expect a compact mid block. The wide channels should be our primary route.', date: 'Fri 25, May', time: '18:20', unread: false },
+    { id: 'm6', from: 'Andrew Cuffin', subject: 'Tactician overview update', body: 'Matchday plan confirmed — balanced shape with a high press for the opening fifteen minutes.', date: 'Fri 25, May', time: '20:30', unread: false },
+    { id: 'm7', from: 'Simon Newton', subject: 'Player of the week', body: 'Three candidates shortlisted for Player of the Week honours after the weekend fixtures.', date: 'Fri 25, May', time: '20:30', unread: false },
   ]
+  const leaguePosition = leagueTable.find((row) => row.name === profile.clubName)?.pos ?? 7
+  const squadAvg = Math.round(players.reduce((t, p) => t + p.rating, 0) / players.length)
 
   return (
     <>
-      {/* Hero story banner — wide top card with club crest */}
-      <section className="hub-story">
-        <div className="hub-story-bg" style={{ background: `linear-gradient(135deg, ${profile.primaryColor}, ${profile.secondaryColor})` }} />
-        <div className="hub-story-content">
-          <div className="hub-story-crests">
-            <div className="crest-med" style={{ background: profile.primaryColor }}>{profile.clubShort}</div>
+      {/* Identity band */}
+      <section className="dash-band">
+        <div className="dash-ident">
+          <div className="dash-crest" style={{ background: profile.primaryColor }}>{profile.clubShort}</div>
+          <div className="dash-ident-text">
+            <span className="dash-kicker">{profile.league} · Season {seasonNumber} · Week {weekNumber}</span>
+            <h1 className="dash-club">{profile.clubName}</h1>
+            <span className="dash-ident-meta">Manager · {profile.name}</span>
           </div>
-          <div className="hub-story-body">
-            <span className="kicker">See All News · {new Date(2026, 1, 4).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}</span>
-            <h1>Team of the Week Announced</h1>
-            <p className="muted" style={{ fontSize: 'var(--t-sm)', lineHeight: 1.5, maxWidth: 480 }}>
-              David Raya, Reece, William Saliba, Levi Colwill, Mikel Merino, Declan Rice, Bruno Guimaraes, Semenyo, Florian Wirtz, van Dijk and Mavropanos were selected as the Premier League Team of the Week.
-            </p>
-            <span className="hub-story-tag">English Premier League · 1 hour ago</span>
-          </div>
+        </div>
+        <div className="dash-band-stats">
+          <div className="dash-stat"><span>League position</span><b>{leaguePosition}</b><em>of 12</em></div>
+          <div className="dash-stat"><span>Form</span><b className="dash-form">W W D W</b><em>last 4</em></div>
+          <div className="dash-stat"><span>Squad average</span><b>{squadAvg}</b><em>rating</em></div>
+          <div className="dash-stat"><span>Transfer budget</span><b>{formatMoney(budget)}</b><em>available</em></div>
         </div>
       </section>
 
-      {/* 4-column FM-style main grid */}
-      <div className="hub-grid">
-        {/* Column 1: Messages */}
-        <section className="panel panel-messages">
+      {/* Top row: next fixture | inbox | league */}
+      <div className="dash-top">
+        <section className="panel dash-next">
+          <div className="panel-head">
+            <span className="kicker">Next fixture</span>
+            <span className="kicker">{fixture.home ? 'HOME' : 'AWAY'} · {fixture.difficulty?.toUpperCase() ?? 'MEDIUM'}</span>
+          </div>
+          <div className="hub-nextmatch">
+            <div className="hub-nextmatch-time">
+              <b>20:00</b>
+              <span className="kicker">KICK-OFF</span>
+            </div>
+            <div className="hub-nextmatch-info">
+              <span className="kicker">Opposition report</span>
+              <b className="hub-nextmatch-fc">{fixture.home ? `${profile.clubName} vs ${fixture.short}` : `${fixture.short} vs ${profile.clubShort}`}</b>
+              <small className="muted">{fixture.date}{currentResult ? ` · FINAL ${currentResult}` : ''}</small>
+            </div>
+            <div className="hub-nextmatch-actions">
+              <button className="btn btn-primary btn-block" onClick={onContinue}>
+                Continue <Icon>→</Icon>
+              </button>
+              <button className="btn btn-ghost btn-block" onClick={() => setActiveView('tactics')}>
+                Edit tactics <Icon>✎</Icon>
+              </button>
+            </div>
+          </div>
+
+          <div className="hub-cal-mini">
+            <div className="panel-head" style={{ padding: 'var(--s-2) var(--s-4)' }}>
+              <b style={{ fontSize: 'var(--t-sm)' }}>August 2026</b>
+              <div className="cal-dots">
+                <button className="cal-dot active"></button>
+                <button className="cal-dot"></button>
+                <button className="cal-dot"></button>
+              </div>
+            </div>
+            <div className="cal-grid-mini">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((wd) => (
+                <div key={wd} className="cal-h-cell">{wd}</div>
+              ))}
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+                const isMatch = day === 6 || day === 13 || day === 17 || day === 22 || day === 27
+                return (
+                  <div key={day} className={`cal-d-cell${isMatch ? ' match' : ''}${day === 4 ? ' today' : ''}`}>
+                    <span className="cal-d-num">{day}</span>
+                    {day === 6 && <span className="cal-d-evt">CHEL</span>}
+                    {day === 13 && <span className="cal-d-evt">ARS</span>}
+                    {day === 22 && <span className="cal-d-evt">ARS</span>}
+                    {day === 27 && <span className="cal-d-evt">FUL</span>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="panel dash-inbox">
           <div className="panel-head">
             <span className="kicker">Inbox</span>
             <div className="msg-tabs">
@@ -92,98 +146,14 @@ export function ManagerHubView({ profile, players, budget, weekNumber, dateIndex
             ))}
           </div>
           <div className="panel-foot">
-            <span className="kicker">REPRESENTATIVE UI — FINAL EXPERIENCE MAY DIFFER</span>
+            <span className="dash-quiet">Representative inbox · Saved locally</span>
           </div>
         </section>
 
-        {/* Column 2: Next match + Calendar mini */}
-        <section className="panel panel-next">
+        <section className="panel dash-league">
           <div className="panel-head">
-            <span className="kicker accent">Match Day</span>
-            <span className="kicker">{fixture.home ? 'HOME' : 'AWAY'} · {fixture.difficulty?.toUpperCase() ?? 'MEDIUM'}</span>
-          </div>
-          <div className="hub-nextmatch">
-            <div className="hub-nextmatch-time">
-              <b>20:00</b>
-              <span className="kicker">UTC+1</span>
-            </div>
-            <div className="hub-nextmatch-info">
-              <span className="kicker">Next Opposition Report</span>
-              <b className="hub-nextmatch-fc">{fixture.home ? `${profile.clubName} vs ${fixture.short}` : `${fixture.short} vs ${profile.clubShort}`}</b>
-              <small className="muted">KO 5:30 PM</small>
-            </div>
-            <div className="hub-nextmatch-actions">
-              <button className="btn btn-primary btn-block" onClick={onContinue}>
-                Continue <Icon>→</Icon>
-              </button>
-              <button className="btn btn-ghost btn-block" onClick={() => setActiveView('tactics')}>
-                Edit tactics <Icon>✎</Icon>
-              </button>
-            </div>
-          </div>
-
-          <div className="hub-cal-mini">
-            <div className="panel-head" style={{ padding: 'var(--s-2) var(--s-4)' }}>
-              <b>Calendar 2026</b>
-              <div className="cal-dots">
-                <button className="cal-dot active"></button>
-                <button className="cal-dot"></button>
-                <button className="cal-dot"></button>
-              </div>
-            </div>
-            <div className="cal-grid-mini">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((wd) => (
-                <div key={wd} className="cal-h-cell">{wd}</div>
-              ))}
-              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
-                const isMatch = day === 6 || day === 13 || day === 17 || day === 22 || day === 27
-                return (
-                  <div key={day} className={`cal-d-cell${isMatch ? ' match' : ''}${day === 4 ? ' today' : ''}`}>
-                    <span className="cal-d-num">{day}</span>
-                    {day === 6 && <span className="cal-d-evt" style={{ background: 'rgba(255,255,255,0.08)' }}>CHEL</span>}
-                    {day === 13 && <span className="cal-d-evt" style={{ background: 'rgba(123,63,242,0.4)' }}>ARS</span>}
-                    {day === 22 && <span className="cal-d-evt" style={{ background: 'rgba(123,63,242,0.4)' }}>ARS</span>}
-                    {day === 27 && <span className="cal-d-evt" style={{ background: 'rgba(255,255,255,0.08)' }}>FUL</span>}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* Column 3: Fixtures next 5 */}
-        <section className="panel panel-fixtures">
-          <div className="panel-head">
-            <span className="kicker">Future Schedule</span>
-            <span className="kicker">ALL COMPETITIONS</span>
-          </div>
-          <div className="fix-list">
-            {[
-              { date: 'Sat 28/01', league: 'Premier League', opp: 'Man City', score: '8-2', home: true },
-              { date: 'Sat 28/01', league: 'NEV', opp: 'Man City', score: '4-1', home: false },
-              { date: 'Tue 28/01', league: 'Premier League', opp: 'Chelsea', score: 'A', home: false },
-              { date: 'Sat 28/01', league: 'DP', opp: 'Newcastle', score: 'A', home: true },
-              { date: 'Sat 28/01', league: 'PL', opp: 'Newcastle', score: 'A', home: false },
-              { date: 'Mon 28/01', league: 'Premier League', opp: 'Leeds', score: 'A', home: true },
-            ].map((f, i) => (
-              <div key={i} className="fix-row">
-                <span className="fix-date">{f.date}</span>
-                <span className="fix-league">{f.league} <small>·</small> <b>{f.score}</b></span>
-                <div className="fix-opp">
-                  <div className="crest-mini">{f.opp.slice(0, 2).toUpperCase()}</div>
-                  <span>{f.opp}</span>
-                  <span className={`pill ${f.home ? 'good' : 'warn'}`}>{f.home ? 'H' : 'A'}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Column 4: Premier League Table */}
-        <section className="panel panel-league">
-          <div className="panel-head">
-            <span className="kicker">Stages · Premier League</span>
-            <span className="kicker">1. Qualification</span>
+            <span className="kicker">League · {profile.league}</span>
+            <span className="kicker">Matchweek {weekNumber}</span>
           </div>
           <div className="league-table-mini">
             <div className="league-table-head">
@@ -201,19 +171,13 @@ export function ManagerHubView({ profile, players, budget, weekNumber, dateIndex
             ))}
           </div>
           <div className="panel-foot" style={{ justifyContent: 'flex-end' }}>
-            <button className="btn btn-link">Match Rules</button>
+            <span className="dash-quiet">Top 12 of 20 · Representative data</span>
           </div>
         </section>
       </div>
 
-      {/* Metrics row */}
-      <div className="grid-4" style={{ marginTop: 'var(--s-5)' }}>
-        <div className="metric">
-          <div className="m-icon accent">€</div>
-          <div className="m-label">Transfer budget</div>
-          <div className="m-value">{formatMoney(budget)}</div>
-          <div className="m-delta positive">+€4.2M this window</div>
-        </div>
+      {/* Metrics band */}
+      <div className="metrics-band">
         <div className="metric">
           <div className="m-icon">⌁</div>
           <div className="m-label">Wage bill</div>
@@ -232,61 +196,89 @@ export function ManagerHubView({ profile, players, budget, weekNumber, dateIndex
           <div className="m-value">A−</div>
           <div className="m-delta">3 prospects ready</div>
         </div>
+        <div className="metric">
+          <div className="m-icon accent">◎</div>
+          <div className="m-label">Board confidence</div>
+          <div className="m-value">8.6</div>
+          <div className="m-delta positive">/10 · secure</div>
+        </div>
       </div>
 
-      {/* Bottom row: Recent activity + Squad snapshot */}
-      <div className="grid-lower" style={{ marginTop: 'var(--s-5)' }}>
+      {/* Lower row: schedule | briefing + top performers */}
+      <div className="grid-lower">
         <section className="panel">
           <div className="panel-head">
-            <div>
-              <span className="kicker">Club activity</span>
-              <h3>Today's briefing</h3>
-            </div>
-            <button className="btn btn-link" onClick={() => setActiveView('market')}>
-              Open transfer hub <Icon>→</Icon>
-            </button>
+            <span className="kicker">Future schedule</span>
+            <span className="kicker">All competitions</span>
           </div>
-          <div className="panel-rows">
-            {simulationEvents.length > 0 ? simulationEvents.slice(0, 6).map((event) => (
-              <div className="event" key={event.id}>
-                <div className="e-dot" />
-                <div className="e-text">
-                  <b>{event.label}</b>
-                  <small>{event.detail}</small>
+          <div className="fix-list">
+            {seasonFixtures.slice(dateIndex + 1, dateIndex + 6).map((f, i) => (
+              <div key={i} className="fix-row">
+                <span className="fix-date">{f.date}</span>
+                <span className="fix-league">{f.competition} <small>·</small> <b>{f.home ? 'H' : 'A'}</b></span>
+                <div className="fix-opp">
+                  <div className="crest-mini" style={{ background: f.crest }}>{f.short}</div>
+                  <span>{f.opponent}</span>
+                  <span className={`pill ${f.difficulty === 'High' ? 'bad' : f.difficulty === 'Medium' ? 'warn' : 'good'}`}>{f.difficulty} test</span>
                 </div>
-                <div className="e-time mono">NEW</div>
-              </div>
-            )) : (
-              <>
-                <div className="event"><div className="e-dot accent" /><div className="e-text"><b>Board objective updated</b><small>Secure a top-six finish</small></div><div className="e-time mono">09:20</div></div>
-                <div className="event"><div className="e-dot good" /><div className="e-text"><b>Market movement</b><small>Bellori&apos;s value rose to €36.5M</small></div><div className="e-time mono">08:45</div></div>
-                <div className="event"><div className="e-dot warn" /><div className="e-text"><b>Training report</b><small>3 players reached peak fitness</small></div><div className="e-time mono">YEST</div></div>
-              </>
-            )}
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <span className="kicker">Squad snapshot</span>
-              <h3>Top performers this week</h3>
-            </div>
-            <button className="btn btn-link" onClick={() => setActiveView('squad')}>
-              Full squad <Icon>→</Icon>
-            </button>
-          </div>
-          <div className="panel-rows">
-            {[...players].sort((a, b) => b.form - a.form).slice(0, 5).map((p) => (
-              <div className="panel-row" key={p.id}>
-                <div className="row-icon" style={{ background: p.color, color: '#fff', fontWeight: 700, fontSize: 11 }}>{p.initials}</div>
-                <div className="row-text"><b>{p.name}</b><small>{p.position} · {p.role ?? 'Rotation'}</small></div>
-                <b className="row-meta accent">{p.rating}</b>
-                <span className={`pill rating ${p.rating >= 85 ? 'exc' : p.rating >= 75 ? 'good' : 'avg'}`}>{p.form}</span>
               </div>
             ))}
           </div>
         </section>
+
+        <div className="dash-side">
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <span className="kicker">Club briefing</span>
+                <h3>Today at the club</h3>
+              </div>
+              <button className="btn btn-link" onClick={() => setActiveView('market')}>
+                Transfer hub <Icon>→</Icon>
+              </button>
+            </div>
+            <div className="panel-rows">
+              {simulationEvents.length > 0 ? simulationEvents.slice(0, 5).map((event) => (
+                <div className="event" key={event.id}>
+                  <div className="e-dot" />
+                  <div className="e-text">
+                    <b>{event.label}</b>
+                    <small>{event.detail}</small>
+                  </div>
+                  <div className="e-time mono">NEW</div>
+                </div>
+              )) : (
+                <>
+                  <div className="event"><div className="e-dot accent" /><div className="e-text"><b>Board objective updated</b><small>Secure a top-six finish</small></div><div className="e-time mono">09:20</div></div>
+                  <div className="event"><div className="e-dot good" /><div className="e-text"><b>Market movement</b><small>Bellori&apos;s value rose to €36.5M</small></div><div className="e-time mono">08:45</div></div>
+                  <div className="event"><div className="e-dot warn" /><div className="e-text"><b>Training report</b><small>3 players reached peak fitness</small></div><div className="e-time mono">YEST</div></div>
+                </>
+              )}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <span className="kicker">Squad</span>
+                <h3>Top performers</h3>
+              </div>
+              <button className="btn btn-link" onClick={() => setActiveView('squad')}>
+                Full squad <Icon>→</Icon>
+              </button>
+            </div>
+            <div className="panel-rows">
+              {[...players].sort((a, b) => b.form - a.form).slice(0, 5).map((p) => (
+                <div className="panel-row" key={p.id}>
+                  <div className="row-icon" style={{ background: p.color, color: '#fff', fontWeight: 700, fontSize: 11 }}>{p.initials}</div>
+                  <div className="row-text"><b>{p.name}</b><small>{p.position} · {p.role ?? 'Rotation'}</small></div>
+                  <b className="row-meta accent">{p.rating}</b>
+                  <span className={`pill rating ${p.rating >= 85 ? 'exc' : p.rating >= 75 ? 'good' : 'avg'}`}>{p.form}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     </>
   )
@@ -294,56 +286,31 @@ export function ManagerHubView({ profile, players, budget, weekNumber, dateIndex
 
 
 /* ──────────────────────────────────────────────────────────────
-   PLAYER HUB — personal dashboard for the player career
+   PLAYER HUB — personal dashboard, same flat system
    ────────────────────────────────────────────────────────────── */
-export function PlayerHubView({ profile, player, clockLabel, simDay, playerMatchPhase, playerMatch, actionTimer, matchSpeed, onSetSpeed, trainingProgress, rivalryScore, managerTrust, simulationEvents, onAdvanceMatch, onMatchAction, openModal, setActiveView }: { profile: CareerProfile; player: Player; clockLabel: string; simDay: number; playerMatchPhase: MatchPhase | null; playerMatch: PlayerMatch | null; actionTimer: number; matchSpeed: number; onSetSpeed: (s: number) => void; trainingProgress: number; rivalryScore: number; managerTrust: number; simulationEvents: SimulationEvent[]; onAdvanceMatch: () => void; onMatchAction: (action: 'attack' | 'compose' | 'conserve' | 'press' | 'hold' | 'risk' | 'encourage' | 'humble') => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
+export function PlayerHubView({ profile, player, clockLabel, simDay, dateIndex = 0, playerMatchPhase, playerMatch, actionTimer, matchSpeed, onSetSpeed, trainingProgress, rivalryScore, managerTrust, simulationEvents, onAdvanceMatch, onMatchAction, openModal, setActiveView }: { profile: CareerProfile; player: Player; clockLabel: string; simDay: number; dateIndex?: number; playerMatchPhase: MatchPhase | null; playerMatch: PlayerMatch | null; actionTimer: number; matchSpeed: number; onSetSpeed: (s: number) => void; trainingProgress: number; rivalryScore: number; managerTrust: number; simulationEvents: SimulationEvent[]; onAdvanceMatch: () => void; onMatchAction: (action: 'attack' | 'compose' | 'conserve' | 'press' | 'hold' | 'risk' | 'encourage' | 'humble') => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
   return (
     <>
-      <PageHeader
-        eyebrow={`Player · Week of Aug ${simDay} · ${profile.league}`}
-        title="Player dashboard"
-        description={`${profile.clubName} · ${profile.playerPosition} · Contract ${player.contract} years`}
-        action={
-          <button className="btn btn-primary" onClick={() => openModal('Match preparation')}>
-            Matchday focus <Icon>→</Icon>
-          </button>
-        }
-      />
+      {/* Identity band */}
+      <section className="dash-band">
+        <div className="dash-ident">
+          <div className="dash-crest" style={{ background: profile.primaryColor }}>{profile.name.split(' ').map((p) => p[0]).join('').slice(0, 2)}</div>
+          <div className="dash-ident-text">
+            <span className="dash-kicker">{profile.league} · Player career</span>
+            <h1 className="dash-club">{profile.name}</h1>
+            <span className="dash-ident-meta">{profile.playerPosition} · {profile.clubName} · {player.contract} yrs remaining</span>
+          </div>
+        </div>
+        <div className="dash-band-stats">
+          <div className="dash-stat"><span>Overall</span><b>{player.rating}</b><em>current</em></div>
+          <div className="dash-stat"><span>Form</span><b>{player.form}</b><em>current</em></div>
+          <div className="dash-stat"><span>Morale</span><b>{player.morale}</b><em>current</em></div>
+          <div className="dash-stat"><span>Potential</span><b>{player.potential}</b><em>ceiling</em></div>
+        </div>
+      </section>
 
+      {/* Matchday + development */}
       <div className="grid-hero">
-        <section className="hero hero-split">
-          <div>
-            <div className="hero-meta">
-              <span className="pill live"><i /> Player</span>
-              <span className="pill">{profile.playerPosition}</span>
-            </div>
-            <h2>{profile.name}</h2>
-            <p>{profile.clubName} · {profile.playerPosition} · {profile.league}</p>
-            <div className="hero-footline">
-              <div>
-                <span>Form</span>
-                <b>{player.form}</b>
-              </div>
-              <div>
-                <span>Morale</span>
-                <b>{player.morale}</b>
-              </div>
-              <div>
-                <span>This season</span>
-                <b className="accent">+{player.dynamicChange ?? 0} rating</b>
-              </div>
-              <div>
-                <span>Next match</span>
-                <b>{playerMatchPhase ? 'Live' : `Day ${simDay + 5}`}</b>
-              </div>
-            </div>
-          </div>
-          <div className="hero-big-number" aria-label="Overall rating">
-            <small>Overall</small>
-            {player.rating}
-          </div>
-        </section>
-
         <MatchdayPanel
           profile={profile}
           phase={playerMatchPhase}
@@ -357,78 +324,77 @@ export function PlayerHubView({ profile, player, clockLabel, simDay, playerMatch
           onAction={onMatchAction}
           openModal={openModal}
         />
-      </div>
 
-      <div className="grid-4">
-        <div className="metric">
-          <div className="m-icon accent">★</div>
-          <div className="m-label">Overall</div>
-          <div className="m-value">{player.rating}</div>
-          <div className="m-delta positive">+{player.dynamicChange ?? 0} this season</div>
-        </div>
-        <div className="metric">
-          <div className="m-icon">⌁</div>
-          <div className="m-label">Match fitness</div>
-          <div className="m-value">{player.fitness}%</div>
-          <div className="m-delta">{player.fitness >= 90 ? 'Peak' : player.fitness >= 80 ? 'Sharp' : 'Building'}</div>
-        </div>
-        <div className="metric">
-          <div className="m-icon accent">◎</div>
-          <div className="m-label">Manager trust</div>
-          <div className="m-value">{managerTrust}%</div>
-          <div className="m-delta">{managerTrust >= 70 ? 'Strong' : managerTrust >= 50 ? 'Stable' : 'Pressure'}</div>
-        </div>
-        <div className="metric">
-          <div className="m-icon">⚡</div>
-          <div className="m-label">Rivalry score</div>
-          <div className="m-value">{rivalryScore}</div>
-          <div className="m-delta">{rivalryScore >= 60 ? 'Competitive' : 'Building'}</div>
-        </div>
-      </div>
-
-      <div className="grid-lower">
         <section className="panel">
           <div className="panel-head">
             <div>
               <span className="kicker">Development</span>
-              <h3>Your growth this season</h3>
+              <h3>Growth this season</h3>
             </div>
             <button className="btn btn-link" onClick={() => setActiveView('training')}>
               Open training <Icon>→</Icon>
             </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-4)', marginBottom: 'var(--s-5)' }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: 12,
-              background: `linear-gradient(135deg, ${profile.primaryColor}, ${profile.secondaryColor})`,
-              color: '#0a0b10', fontWeight: 800, fontSize: 16,
-              display: 'grid', placeItems: 'center',
-            }}>
-              {profile.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}
+          <div className="panel-body">
+            <div className="dev-hero">
+              <div className="dev-hero-avatar" style={{ background: `linear-gradient(135deg, ${profile.primaryColor}, ${profile.secondaryColor})` }}>
+                {profile.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}
+              </div>
+              <div>
+                <b style={{ display: 'block', fontSize: 'var(--t-md)' }}>{profile.name}</b>
+                <small className="muted" style={{ fontSize: 'var(--t-xs)' }}>{profile.playerPosition} · {profile.clubName}</small>
+              </div>
+              <div className="dev-hero-pot">
+                <b>{player.potential}</b>
+                <span>Potential</span>
+              </div>
             </div>
-            <div>
-              <b style={{ display: 'block', fontSize: 'var(--t-md)' }}>{profile.name}</b>
-              <small className="muted" style={{ fontSize: 'var(--t-xs)' }}>{profile.playerPosition} · {profile.clubName}</small>
+            <div className="stack">
+              <DynamicBar label="Technical" value={72} color="purple" />
+              <DynamicBar label="Physical" value={64} color="cyan" />
+              <DynamicBar label="Mental" value={78} color="lime" />
             </div>
-            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-              <div style={{ fontSize: 'var(--t-2xl)', fontWeight: 800, color: 'var(--accent)' }}>{player.potential}</div>
-              <span className="kicker">Potential</span>
+            <div style={{ marginTop: 'var(--s-5)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span className="kicker">Season progress</span>
+                <b style={{ fontSize: 'var(--t-md)', fontVariantNumeric: 'tabular-nums' }}>{Math.round(trainingProgress)}%</b>
+              </div>
+              <div className="bar"><i style={{ width: `${Math.round(trainingProgress)}%` }} /></div>
             </div>
-          </div>
-          <div className="stack">
-            <DynamicBar label="Technical" value={72} color="purple" />
-            <DynamicBar label="Physical" value={64} color="cyan" />
-            <DynamicBar label="Mental" value={78} color="lime" />
-          </div>
-          <div style={{ marginTop: 'var(--s-5)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span className="kicker">Season progress</span>
-              <b style={{ fontSize: 'var(--t-md)', fontVariantNumeric: 'tabular-nums' }}>{Math.round(trainingProgress)}%</b>
-            </div>
-            <div className="bar"><i style={{ width: `${Math.round(trainingProgress)}%` }} /></div>
           </div>
         </section>
+      </div>
 
+      {/* Metrics band */}
+      <div className="metrics-band">
+        <div className="metric">
+          <div className="m-icon accent">★</div>
+          <div className="m-label">Match fitness</div>
+          <div className="m-value">{player.fitness}%</div>
+          <div className="m-delta">{player.fitness >= 90 ? 'Peak' : player.fitness >= 80 ? 'Sharp' : 'Building'}</div>
+        </div>
+        <div className="metric">
+          <div className="m-icon">◎</div>
+          <div className="m-label">Manager trust</div>
+          <div className="m-value">{managerTrust}%</div>
+          <div className="m-delta">{managerTrust >= 70 ? 'Strong' : managerTrust >= 50 ? 'Stable' : 'Pressure'}</div>
+        </div>
+        <div className="metric">
+          <div className="m-icon accent">⚡</div>
+          <div className="m-label">Rivalry score</div>
+          <div className="m-value">{rivalryScore}</div>
+          <div className="m-delta">{rivalryScore >= 60 ? 'Competitive' : 'Building'}</div>
+        </div>
+        <div className="metric">
+          <div className="m-icon">✦</div>
+          <div className="m-label">Contract</div>
+          <div className="m-value">{player.contract}y</div>
+          <div className="m-delta">remaining</div>
+        </div>
+      </div>
+
+      {/* Activity + upcoming fixtures */}
+      <div className="grid-lower">
         <section className="panel">
           <div className="panel-head">
             <div>
@@ -457,6 +423,31 @@ export function PlayerHubView({ profile, player, clockLabel, simDay, playerMatch
                   <small>{event.detail}</small>
                 </div>
                 <div className="e-time">NEW</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <span className="kicker">Fixtures</span>
+              <h3>Upcoming schedule</h3>
+            </div>
+            <button className="btn btn-link" onClick={() => setActiveView('calendar')}>
+              Full calendar <Icon>→</Icon>
+            </button>
+          </div>
+          <div className="fix-list">
+            {seasonFixtures.slice(dateIndex, dateIndex + 5).map((f, i) => (
+              <div key={i} className="fix-row">
+                <span className="fix-date">{f.date}</span>
+                <span className="fix-league">{f.competition} <small>·</small> <b>{f.home ? 'H' : 'A'}</b></span>
+                <div className="fix-opp">
+                  <div className="crest-mini" style={{ background: f.crest }}>{f.short}</div>
+                  <span>{f.opponent}</span>
+                  <span className={`pill ${f.difficulty === 'High' ? 'bad' : f.difficulty === 'Medium' ? 'warn' : 'good'}`}>{f.difficulty} test</span>
+                </div>
               </div>
             ))}
           </div>
@@ -727,7 +718,7 @@ export function ManagerMatchdayPanel({ match, profile, players, matchSpeed, onSe
 }
 
 /* ──────────────────────────────────────────────────────────────
-   MANAGER HUB — the manager dashboard
+   MANAGER HUB — the manager dashboard (legacy matchweek view)
    ────────────────────────────────────────────────────────────── */
 export function HubView({ profile, budget, dateIndex, fixtureResults, players, managerMatch, matchSpeed, onSetSpeed, onFinishMatch, onSubPlayer, continueWeek, openModal, setActiveView }: { profile: CareerProfile; budget: number; dateIndex: number; fixtureResults: Record<number, string>; players: Player[]; managerMatch: ManagerMatch | null; matchSpeed: number; onSetSpeed: (s: number) => void; onFinishMatch: () => void; onSubPlayer: (outId: number, inId: number) => void; continueWeek: () => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
   const fixture = seasonFixtures[dateIndex]

@@ -624,7 +624,7 @@ function App() {
     setActiveView(map[id])
   }
 
-  if (pageMode === 'landing') return <LandingPage onEnter={() => setPageMode('game')} onDocs={() => setPageMode('docs')} hasSavedCareer={!!profile} onContinue={() => setPageMode('game')} />
+  if (pageMode === 'landing') return <LandingPage onEnter={() => setPageMode('game')} onDocs={() => setPageMode('docs')} hasSavedCareer={!!profile} onContinue={() => setPageMode('game')} onNewCareer={() => { resetCareer(); setPageMode('game') }} />
   if (pageMode === 'docs') return <DocsPage onBack={() => setPageMode('landing')} />
 
   if (!profile) return onboarding ? <ClubOffersView onboarding={onboarding} onAccept={(offer) => {
@@ -743,10 +743,10 @@ function App() {
             />
           )}
           {activeView === 'hub' && careerMode === 'player' && (
-            <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSpeed(s as 0 | 1 | 2 | 20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />
+            <PlayerHubView profile={profile} player={selectedPlayer} dateIndex={dateIndex} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSpeed(s as 0 | 1 | 2 | 20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />
           )}
           {activeView === 'player' && careerMode === 'player' && (
-            <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSpeed(s as 0 | 1 | 2 | 20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />
+            <PlayerHubView profile={profile} player={selectedPlayer} dateIndex={dateIndex} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSpeed(s as 0 | 1 | 2 | 20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />
           )}
           {activeView === 'squad' && <SquadView players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} openModal={openModal} /> }
           {activeView === 'transferHub' && <TransferHub prospects={prospects} shortlist={shortlist} transferList={transferList} loanList={loanList} blockedList={blockedList} budget={budget} transferComments={transferComments} transferReports={transferReports} onToggleShortlist={toggleShortlist} onMoveTab={movePlayerToList} onSendComment={sendTransferComment} onShowToast={showToast} />}

@@ -287,7 +287,7 @@ function AttributesTab({ player }: { player: Player }) {
             {[0.4, 0.7, 1].map((scale) => (
               <circle key={scale} cx={cx} cy={cy} r={r * scale} fill="none" stroke="rgba(148,163,184,.15)" />
             ))}
-            <polygon points={polygon} fill="rgba(123,63,242,.20)" stroke="var(--accent)" strokeWidth={2} />
+            <polygon points={polygon} fill="rgba(4,120,87,.20)" stroke="var(--accent)" strokeWidth={2} />
             {keys.map((k, i) => {
               const angle = -Math.PI / 2 + (i / keys.length) * Math.PI * 2
               const x = cx + Math.cos(angle) * (r + 16)
