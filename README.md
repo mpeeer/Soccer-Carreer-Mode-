@@ -70,7 +70,7 @@ The repository is configured for a project site at:
 
 Every push to `main` triggers `.github/workflows/deploy.yml`. The workflow installs dependencies, runs the production build, uploads `dist/` as a Pages artifact, and deploys it to GitHub Pages.
 
-The repository also includes a branch-root fallback. If Pages is configured to serve the `main` branch root instead of the Actions artifact, the root entry redirects to the committed `dist/` build. After changing source files, run `npm run build` and include the updated `dist/` files in the commit.
+The repository also supports branch-root Pages as a fallback. The production build mirrors the compiled entry and assets into the repository root as well as `dist/`, so Pages can serve either the `main` branch root or the Actions artifact. After changing source files, run `npm run build` and include the updated root assets and `dist/` files in the commit.
 
 To use the preferred deployment mode in GitHub:
 
@@ -87,8 +87,10 @@ To use the preferred deployment mode in GitHub:
 ├── src/App.tsx                   # Career mode UI and local game state
 ├── src/index.css                 # Visual system and responsive layout
 ├── src/main.tsx                  # React entry point
-├── index.html                    # Document shell and metadata
-├── vite.config.ts                # Vite configuration and Pages base path
+├── src/index.html                # Vite document shell and metadata
+├── index.html                    # Mirrored production entry for branch-root Pages
+├── assets/                       # Mirrored production assets for branch-root Pages
+├── vite.config.ts                # Vite configuration and dual Pages output
 └── package.json                  # Scripts and dependencies
 ```
 
