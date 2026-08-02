@@ -1,103 +1,94 @@
 # Northstar FC — Career Mode
 
-Northstar FC is a fictional football management experience focused on the decisions behind matchday: squad selection, player development, scouting, transfers, club finances, and long-term identity.
+A single-page football career simulation built with React, TypeScript, and Vite. Play as a **manager** controlling the touchline or a **player** earning a place on the pitch. All clubs, players, and competitions are fictional.
 
-The interface is built as a dark, data-led manager desk for a single-season career prototype. All clubs, players, competitions, and brands in the experience are fictional.
+## Features
 
-## Product overview
+### Landing & onboarding
+- Minimal landing page with docs explaining the game
+- New career or continue-saved-career entry points
+- Three club offers per career with distinct philosophies, budgets, and pathways
 
-The career hub puts the full club cycle in one place:
+### Manager career
+- **Central hub** — weekly objectives, upcoming fixtures, squad momentum
+- **Squad** — 13-player roster with dynamic form, morale, fitness, contracts, and roles
+- **Transfer market** — searchable prospects, shortlist management, scout reports, player interest
+- **Academy** — youth prospects with development progress and promotion pathways
+- **Club vision** — board objectives, financial control, and club values
+- **Live matchday** — auto-advancing match clock (1×/2×/10×), possession bar, shot count, events feed, player performance ratings, and substitution mechanic at halftime
 
-- **Central** — weekly objectives, upcoming fixtures, squad momentum, club briefings, and career progression.
-- **Squad** — player ratings, dynamic form, morale, match fitness, contracts, roles, and development actions.
-- **Transfer Market** — searchable targets, shortlist management, scout reports, player interest, and active enquiries.
-- **Academy** — youth prospects, development progress, recruitment programs, and promotion pathways.
-- **Club Vision** — board objectives, financial control, investment requests, and club values.
+### Player career
+- **My player** — rating, form, rivalry score, manager trust, and skill progression
+- **Training** — five drill sessions (pace, shooting, passing, dribbling, physical) with energy cost, daily limits, and overnight recovery
+- **Live matchday** — narrative-driven match simulation with timed choice points (pass, shoot, run, tackle, hold) and consequence system for missed decisions
+- **Club team** — squad view with your career player included
 
-The prototype includes a lightweight match simulation loop. Advancing the week resolves the next fixture, updates player condition, records the result, and moves the career calendar forward.
+### Shared systems
+- **Calendar** — full 38-match season with match days, training days, and transfer deadlines
+- **Transfers** — randomly generated transfer approaches with storylines, club perks/risks, and negotiation stages for both manager and player careers
+- **Sim clock** — day/night cycle with adjustable speed (1×/2×/10×), mid-match pauses, and per-day processing (player condition, training progress, transfer pop-ups)
+- **Save/load** — automatic localStorage persistence with versioned save envelopes, legacy backup, and save-on-tab-close
 
 ## Tech stack
 
-- React
-- TypeScript
-- Vite
-- CSS
-- GitHub Actions
-- GitHub Pages
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 19 |
+| Language | TypeScript |
+| Build | Vite |
+| Styling | CSS (custom properties, Inter + DM Mono fonts) |
+| Deployment | GitHub Actions → GitHub Pages |
 
 ## Requirements
 
-- Node.js 20 or newer
-- npm 10 or newer
+- Node.js 20+
+- npm 10+
 
 ## Local development
 
-Install dependencies:
-
 ```bash
 npm install
+npm run dev        # → http://localhost:5173
 ```
-
-Start the development server:
-
-```bash
-npm run dev
-```
-
-Vite will print the local address in the terminal, usually `http://localhost:5173`.
 
 ## Production build
 
-Create an optimized production build:
-
 ```bash
-npm run build
+npm run build      # TypeScript check + Vite production bundle
+npm run preview    # Serve dist/ locally
 ```
 
-Preview the production output locally:
-
-```bash
-npm run preview
-```
-
-The compiled site is written to `dist/`.
+Output lands in `dist/`. Assets are also mirrored to the repo root for branch-root GitHub Pages fallback.
 
 ## GitHub Pages deployment
 
-The repository is configured for a project site at:
-
-`https://mpeeer.github.io/Northstar-FC/`
-
-Every push to `main` triggers `.github/workflows/deploy.yml`. The workflow installs dependencies, runs the production build, uploads `dist/` as a Pages artifact, and deploys it to GitHub Pages.
-
-The repository also supports branch-root Pages as a fallback. The production build mirrors the compiled entry and assets into the repository root as well as `dist/`, so Pages can serve either the `main` branch root or the Actions artifact. After changing source files, run `npm run build` and include the updated root assets and `dist/` files in the commit.
-
-To use the preferred deployment mode in GitHub:
-
-1. Open the repository **Settings**.
-2. Open **Pages**.
-3. Set **Source** to **GitHub Actions**.
-4. Push to `main` or run the workflow from the **Actions** tab.
+Deployed at **`https://mpeeer.github.io/Northstar-FC/`** via `.github/workflows/deploy.yml`. Every push to `main` triggers the workflow: install → build → upload artifact → deploy.
 
 ## Project structure
 
-```text
-.
-├── .github/workflows/deploy.yml  # GitHub Pages deployment
-├── src/App.tsx                   # Career mode UI and local game state
-├── src/index.css                 # Visual system and responsive layout
-├── src/main.tsx                  # React entry point
-├── src/index.html                # Vite document shell and metadata
-├── index.html                    # Mirrored production entry for branch-root Pages
-├── assets/                       # Mirrored production assets for branch-root Pages
-├── vite.config.ts                # Vite configuration and dual Pages output
-└── package.json                  # Scripts and dependencies
+```
+src/
+├── App.tsx           # App component, state, effects, handlers, view components (942 lines)
+├── types.ts          # All TypeScript types and interfaces (173 lines)
+├── data.tsx          # Constants, data arrays, and data-coupled factories (125 lines)
+├── utils.tsx         # Validators, storage helpers, formatters, Icon component (166 lines)
+├── index.css         # Full visual system and responsive layout (742 lines)
+├── main.tsx          # React entry point
+├── index.html        # Vite document shell
+└── vite-env.d.ts     # Vite type declarations
 ```
 
-## Design direction
+### Module dependency graph
 
-Northstar FC uses a compact manager-desk layout with high-contrast data panels, restrained motion, and responsive navigation. The product language is original and intentionally separate from licensed football game branding, club identities, player likenesses, and proprietary assets.
+```
+types.ts  ←  data.tsx  ←  utils.tsx  ←  App.tsx
+          (no circular dependencies)
+```
+
+## Design
+
+Dark SaaS-dashboard aesthetic with solid backgrounds, flat panels, high-contrast data displays, and restrained motion. Inter is the primary typeface with DM Mono for data labels and metrics. All branding, club identities, player likenesses, and competitions are fictional and intentionally separate from licensed football properties.
 
 ## License
 
-No license has been selected for this repository yet. Add one before distributing the project outside the repository.
+No license selected. Add one before distributing outside the repository.
