@@ -227,17 +227,17 @@ export const navItems: { id: View; label: string; icon: string }[] = [
   { id: 'transferHub', label: 'Transfers', icon: '↔' },
   { id: 'market', label: 'Market', icon: '↗' },
   { id: 'playerProfile', label: 'Profile', icon: '✦' },
-  { id: 'club', label: 'Club vision', icon: '◈' },
+  { id: 'club', label: 'Club', icon: '◈' },
 ]
 
 export const playerNavItems: { id: View; label: string; icon: string }[] = [
   { id: 'hub', label: 'Central', icon: '⌂' },
-  { id: 'player', label: 'My player', icon: '♙' },
+  { id: 'player', label: 'My Pro', icon: '♙' },
   { id: 'playerProfile', label: 'Profile', icon: '✦' },
   { id: 'teamManagement', label: 'Team Mgmt', icon: '⊞' },
   { id: 'calendar', label: 'Calendar', icon: '◷' },
   { id: 'transferHub', label: 'Transfers', icon: '↔' },
   { id: 'training', label: 'Training', icon: '⚡' },
-  { id: 'squad', label: 'Club team', icon: '◎' },
-  { id: 'club', label: 'Club life', icon: '◈' },
+  { id: 'squad', label: 'Squad', icon: '◎' },
+  { id: 'club', label: 'Club', icon: '◈' },
 ]

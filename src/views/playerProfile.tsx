@@ -101,7 +101,7 @@ function OverviewTab({ player, onShowToast }: { player: Player; onShowToast: (m:
       <section className="ea-pp-attributes-grid">
         <div className="ea-pp-attr-cell">
           <span>Club</span>
-          <b>{player.club?.toUpperCase() ?? 'NORTHSTAR FC'} · <i style={{ fontStyle: 'normal' }}>J</i></b>
+          <b>{player.club?.toUpperCase() ?? 'YOUR CLUB'} · <i style={{ fontStyle: 'normal' }}>J</i></b>
         </div>
         <div className="ea-pp-attr-cell">
           <span>Expected Market Value (xTV)</span>
