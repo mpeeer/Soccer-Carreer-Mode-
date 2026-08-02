@@ -7,8 +7,8 @@ export function LandingPage({ onEnter, onDocs, hasSavedCareer, onContinue }: { o
       <div className="landing-orb" />
     </div>
     <nav className="landing-nav">
+      <button className="landing-nav-about" onClick={onDocs}>About</button>
       <div className="landing-nav-links">
-        <button onClick={onDocs}>About</button>
         {hasSavedCareer ? (
           <button className="primary-pill" onClick={onContinue}>CONTINUE CAREER</button>
         ) : (
