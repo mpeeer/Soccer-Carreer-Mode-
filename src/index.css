@@ -460,4 +460,46 @@ button:hover { filter: brightness(1.06); }
 .match-timer-fill { height: 100%; border-radius: inherit; transition: width 1s linear; }
 .match-timer-bar span { position: absolute; inset: 0; display: grid; place-items: center; color: #c0cfe0; font: 600 9px 'DM Mono'; letter-spacing: .06em; }
 .matchday-narrative { min-height: 44px; margin: 13px 0 2px; color: #a2b2c7; font-size: 10px; line-height: 1.55; font-style: italic; padding: 10px 12px; border-left: 2px solid rgba(140,123,255,.3); background: rgba(140,123,255,.04); border-radius: 0 6px 6px 0; }
+/* Manager Matchday */
+.manager-matchday { display: flex; flex-direction: column; gap: 15px; }
+.manager-match-hero { padding: 28px 28px 24px; border: 1px solid var(--line); border-radius: 13px; background: rgba(14,22,36,.8); }
+.manager-match-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.manager-scoreboard { display: flex; align-items: center; justify-content: center; gap: 22px; }
+.manager-club { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; max-width: 140px; }
+.manager-club b { color: #c9d4e4; font-size: 10px; }
+.manager-club.away b { color: #8896ad; }
+.manager-score-center { display: flex; align-items: center; gap: 8px; }
+.manager-score-center strong { color: #f3f7fc; font: 700 36px 'Space Grotesk'; }
+.manager-score-center span { color: #5a6c85; font-size: 18px; margin: 0 4px; }
+.manager-analytics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.analytics-card { padding: 14px 16px; border: 1px solid var(--line); border-radius: 9px; background: rgba(15,23,36,.4); }
+.analytics-card > span { color: #5f708a; font: 7px 'DM Mono'; letter-spacing: .1em; }
+.analytics-card b { color: #d1dae7; font: 600 18px 'Space Grotesk'; display: block; margin-top: 6px; }
+.analytics-card small { color: #667893; font: 400 10px 'Space Grotesk'; }
+.analytics-bar { position: relative; height: 20px; margin-top: 8px; border-radius: 4px; background: #1a2a3d; overflow: hidden; }
+.analytics-bar i { display: block; height: 100%; border-radius: inherit; transition: width .6s ease; }
+.analytics-bar small { position: absolute; inset: 0; display: grid; place-items: center; color: #dce5f0; font: 600 9px 'DM Mono'; }
+.manager-events { display: flex; flex-direction: column; gap: 6px; padding: 15px 18px; border: 1px solid var(--line); border-radius: 9px; background: rgba(15,23,36,.35); max-height: 160px; overflow-y: auto; }
+.event-item { padding: 6px 10px; border-radius: 5px; color: #96a7be; font-size: 10px; border-left: 2px solid transparent; background: rgba(122,144,176,.04); }
+.event-item.event-goal { color: var(--lime); border-left-color: var(--lime); background: rgba(181,239,118,.06); }
+.event-item.event-halftime { color: var(--purple); border-left-color: var(--purple); background: rgba(140,123,255,.06); }
+.manager-performances { padding: 14px 18px; border: 1px solid var(--line); border-radius: 9px; background: rgba(15,23,36,.35); }
+.perf-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.perf-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: rgba(18,29,46,.4); min-width: 120px; }
+.perf-row span { color: #8896ad; font-size: 9px; flex: 1; }
+.perf-row strong { color: #c2cfe0; font: 500 11px 'DM Mono'; }
+.perf-row.hot { border-color: rgba(181,239,118,.3); background: rgba(181,239,118,.04); }
+.perf-row.hot strong { color: var(--lime); }
+.perf-row.cold { border-color: rgba(238,141,149,.2); }
+.perf-row.cold strong { color: #ee8d95; }
+.perf-row .player-avatar { width: 26px; height: 26px; font-size: 9px; }
+.manager-subs { padding: 14px 18px; border: 1px solid rgba(245,197,103,.2); border-radius: 9px; background: rgba(245,197,103,.04); }
+.manager-subs p { color: #a2b0c3; font-size: 10px; margin: 6px 0 10px; }
+.sub-options { display: flex; gap: 8px; }
+.sub-button { display: flex; align-items: center; gap: 8px; flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 7px; background: rgba(18,29,46,.4); text-align: left; cursor: pointer; transition: .15s ease; }
+.sub-button:hover { border-color: rgba(140,123,255,.4); background: rgba(140,123,255,.06); }
+.sub-button b { display: block; color: #dce5f0; font-size: 10px; }
+.sub-button small { color: #6f7e96; font: 8px 'DM Mono'; }
+.sub-button .player-avatar { width: 28px; height: 28px; font-size: 9px; }
+@media (max-width: 800px) { .manager-analytics { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 500px) { .calendar-weekdays span { font-size: 7px; }.calendar-day { min-height: 48px; padding: 4px 3px; gap: 3px; }.day-num { font-size: 9px; }.day-badge { display: none; } }

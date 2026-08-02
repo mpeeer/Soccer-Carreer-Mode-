@@ -115,6 +115,21 @@ type PlayerMatch = {
   lastEvent: string
 }
 
+type ManagerMatch = {
+  opponent: string
+  opponentShort: string
+  crest: string
+  home: boolean
+  minute: number
+  teamGoals: number
+  opponentGoals: number
+  possession: number
+  shots: number
+  opponentShots: number
+  events: string[]
+  playerPerformances: { id: number; rating: number }[]
+}
+
 type SimulationEvent = {
   id: number
   label: string
@@ -473,6 +488,7 @@ function App() {
   const [playerMatchPhase, setPlayerMatchPhase] = useState<MatchPhase | null>(savedCareer?.playerMatchPhase ?? null)
   const [playerMatch, setPlayerMatch] = useState<PlayerMatch | null>(savedCareer?.playerMatch ?? null)
   const [matchActionTimer, setMatchActionTimer] = useState(0)
+  const [managerMatch, setManagerMatch] = useState<ManagerMatch | null>(null)
   const [trainingProgress, setTrainingProgress] = useState(savedCareer?.trainingProgress ?? 42)
   const [rivalryScore, setRivalryScore] = useState(savedCareer?.rivalryScore ?? 48)
   const [managerTrust, setManagerTrust] = useState(savedCareer?.managerTrust ?? 74)
@@ -558,6 +574,59 @@ function App() {
     return () => window.clearInterval(tick)
   }, [playerMatchPhase, playerMatch, simulationSpeed])
 
+  // Auto-advance manager match
+  useEffect(() => {
+    if (!managerMatch || simulationSpeed === 0) return
+    const tick = window.setInterval(() => {
+      setManagerMatch((m) => {
+        if (!m || m.minute >= 90) return m
+        const nextMinute = m.minute + 1
+        const homeAdvantage = m.home ? 5 : -5
+        const squadAvg = players.reduce((t, p) => t + p.rating, 0) / players.length
+        const strengthDiff = (squadAvg - 71) / 4 + homeAdvantage
+        const possessionShift = (Math.random() - 0.5) * 14 + strengthDiff * 0.8
+        const newPoss = Math.max(25, Math.min(75, m.possession + possessionShift))
+        const newShots = m.shots + (Math.random() < 0.12 ? 1 : 0)
+        const newOppShots = m.opponentShots + (Math.random() < 0.1 ? 1 : 0)
+        const teamScores = newShots > m.shots && Math.random() < 0.25
+        const oppScores = newOppShots > m.opponentShots && Math.random() < 0.22
+        const newEvents = [...m.events]
+        if (teamScores) newEvents.push(`${nextMinute}' GOAL! ${profile!.clubShort} find the net!`)
+        if (oppScores) newEvents.push(`${nextMinute}' Goal conceded. ${m.opponentShort} break through.`)
+        if (newEvents.length > 8) newEvents.shift()
+        // Update player performances
+        const newPerfs = m.playerPerformances.map((pp) => {
+          const player = players.find((p) => p.id === pp.id)
+          if (!player) return pp
+          const perfShift = (Math.random() - 0.45) * 2 + (player.form - 75) / 50
+          return { ...pp, rating: Math.max(5, Math.min(10, pp.rating + perfShift)) }
+        })
+        // Half-time sub check
+        if (nextMinute === 45 && !m.events.some((e) => e.includes('Half-time'))) {
+          newEvents.push('Half-time. Time to assess the squad.')
+        }
+        return { ...m, minute: nextMinute, possession: Math.round(newPoss), shots: newShots, opponentShots: newOppShots, teamGoals: m.teamGoals + (teamScores ? 1 : 0), opponentGoals: m.opponentGoals + (oppScores ? 1 : 0), events: newEvents.slice(-8), playerPerformances: newPerfs }
+      })
+    }, 1000 / simulationSpeed)
+    return () => window.clearInterval(tick)
+  }, [managerMatch, simulationSpeed, players, profile])
+
+  const finishManagerMatch = (finalScore?: string) => {
+    if (!managerMatch) return
+    const result = finalScore ?? `${managerMatch.teamGoals}–${managerMatch.opponentGoals}`
+    const seasonEnds = weekNumber >= 38
+    setFixtureResults((c) => seasonEnds ? {} : { ...c, [dateIndex]: result })
+    setBudget((c) => c + (clubOffer?.managerBudgetGrowth ?? 0))
+    setDateIndex((c) => seasonEnds ? 0 : Math.min(c + 1, seasonFixtures.length - 1))
+    setWeekNumber((c) => c >= 38 ? 1 : c + 1)
+    if (seasonEnds) setSeasonNumber((c) => c + 1)
+    setPlayers((c) => c.map((p) => ({ ...p, fitness: Math.max(62, p.fitness - (p.id % 3 === 0 ? 7 : 3)), form: Math.min(99, Math.max(55, p.form + (p.id % 2 === 0 ? 2 : -1))) })))
+    setManagerMatch(null)
+    setSimulationSpeed(1)
+    setIsClockRunning(true)
+    showToast(`Matchday complete · ${result}`)
+  }
+
   // Countdown timer for match actions
   useEffect(() => {
     if (matchActionTimer <= 0 || !playerMatchPhase) return
@@ -606,19 +675,12 @@ function App() {
         setPlayerMatchPhase('pre')
         setIsClockRunning(false)
       }
-    } else if (simDay % 7 === 0 && !fixtureResults[dateIndex]) {
+    } else if (simDay % 7 === 0 && !fixtureResults[dateIndex] && !managerMatch) {
       const fixture = seasonFixtures[dateIndex % seasonFixtures.length]
-      const squadRating = players.reduce((total, item) => total + item.rating, 0) / players.length
-      const homeGoals = Math.max(0, Math.min(4, Math.round((squadRating - 71) / 8) + (fixture.home ? 1 : 0) + (clubOffer?.managerResultBoost ?? 0)))
-      const awayGoals = fixture.difficulty === 'High' ? 2 : 1
-      const result = `${fixture.home ? homeGoals : awayGoals}–${fixture.home ? awayGoals : homeGoals}`
-    const seasonEnds = weekNumber >= 38
-    setFixtureResults((current) => seasonEnds ? {} : { ...current, [dateIndex]: result })
-    setBudget((current) => current + (clubOffer?.managerBudgetGrowth ?? 0))
-    setDateIndex((current) => seasonEnds ? 0 : Math.min(current + 1, seasonFixtures.length - 1))
-    setWeekNumber((current) => current >= 38 ? 1 : current + 1)
-      if (seasonEnds) setSeasonNumber((current) => current + 1)
-      setSimulationEvents((current) => [{ id: Date.now() + 2, label: 'Simulated fixture', detail: `${fixture.opponent} finished ${result}.` }, ...current].slice(0, 8))
+      const initialPerfs = players.map((p) => ({ id: p.id, rating: p.rating }))
+      setManagerMatch({ opponent: fixture.opponent, opponentShort: fixture.short, crest: fixture.crest, home: fixture.home, minute: 0, teamGoals: 0, opponentGoals: 0, possession: 50, shots: 0, opponentShots: 0, events: ['Kick-off. The squad takes the pitch.'], playerPerformances: initialPerfs })
+      setIsClockRunning(false)
+      setSimulationEvents((current) => [{ id: Date.now() + 2, label: 'Manager matchday', detail: `${fixture.opponent} at ${fixture.home ? 'home' : 'away'}. You have the touchline.` }, ...current].slice(0, 8))
     }
     // Random transfer approaches (every 3 days, 30% chance, max 3 active)
     if (simDay % 3 === 0 && transferApproaches.length < 3 && Math.random() < 0.3) {
@@ -689,6 +751,7 @@ function App() {
     setManagerTrust(nextProfile.mode === 'manager' ? nextOffer.managerTrust : 74)
     setSimulationEvents([])
     setTransferApproaches([])
+    setManagerMatch(null)
     setTrainingEnergy(100)
     setLastTrainingDay(0)
   }
@@ -728,6 +791,7 @@ function App() {
     setSimulationEvents([])
     setShowTransferModal(false)
     setActiveTransferApproach(null)
+    setManagerMatch(null)
     setTrainingEnergy(100)
     setLastTrainingDay(0)
   }
@@ -845,24 +909,11 @@ function App() {
       showToast('All scheduled fixtures have been resolved')
       return
     }
-    const squadRating = players.reduce((total, player) => total + player.rating, 0) / players.length
-    const formBoost = players.reduce((total, player) => total + player.form, 0) / players.length > 82 ? 1 : 0
-    const boardBoost = Math.floor((clubOffer?.managerTrust ?? 74) / 60)
-    const homeGoals = Math.max(0, Math.min(4, Math.round((squadRating - 71) / 8) + (currentFixture.home ? 1 : 0) + formBoost + boardBoost + (clubOffer?.managerResultBoost ?? 0)))
-    const awayGoals = currentFixture.difficulty === 'High' ? 2 : currentFixture.difficulty === 'Medium' ? 1 : 0
-    const result = `${currentFixture.home ? homeGoals : awayGoals}–${currentFixture.home ? awayGoals : homeGoals}`
-    const seasonEnds = weekNumber >= 38
-    setFixtureResults((current) => seasonEnds ? {} : { ...current, [dateIndex]: result })
-    if (profile?.mode === 'manager') setBudget((current) => current + (clubOffer?.managerBudgetGrowth ?? 0))
-    setDateIndex((current) => seasonEnds ? 0 : Math.min(current + 1, seasonFixtures.length - 1))
-    setWeekNumber((current) => current >= 38 ? 1 : current + 1)
-    if (seasonEnds) setSeasonNumber((current) => current + 1)
-    setPlayers((current) => current.map((player) => ({
-      ...player,
-      fitness: Math.max(62, player.fitness - (player.id % 3 === 0 ? 7 : 3)),
-      form: Math.min(99, Math.max(55, player.form + (player.id % 2 === 0 ? 2 : -1))),
-    })))
-    showToast(`${currentFixture.opponent} resolved · final score ${result}`)
+    if (managerMatch) { showToast('Matchday already in progress'); return }
+    const initialPerfs = players.map((p) => ({ id: p.id, rating: p.rating }))
+    setManagerMatch({ opponent: currentFixture.opponent, opponentShort: currentFixture.short, crest: currentFixture.crest, home: currentFixture.home ?? true, minute: 0, teamGoals: 0, opponentGoals: 0, possession: 50, shots: 0, opponentShots: 0, events: ['Kick-off. The squad takes the pitch.'], playerPerformances: initialPerfs })
+    setIsClockRunning(false)
+    showToast(`Matchday begins · ${currentFixture.opponent}`)
   }
 
   const toggleShortlist = (id: number) => {
@@ -958,7 +1009,7 @@ function App() {
         </header>
 
         <div className="page-wrap">
-          {activeView === 'hub' && (careerMode === 'player' ? <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} /> : <HubView profile={profile} budget={budget} dateIndex={dateIndex} fixtureResults={fixtureResults} continueWeek={continueWeek} openModal={openModal} setActiveView={setActiveView} />)}
+          {activeView === 'hub' && (careerMode === 'player' ? <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} /> : <HubView profile={profile} budget={budget} dateIndex={dateIndex} fixtureResults={fixtureResults} players={players} managerMatch={managerMatch} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} onFinishMatch={() => finishManagerMatch()} onSubPlayer={(outId, inId) => { setPlayers((c) => c.map((p) => p.id === outId ? { ...p, fitness: Math.min(100, p.fitness + 15) } : p)); setManagerMatch((m) => m ? { ...m, events: [...m.events, `SUB: ${players.find((p) => p.id === inId)?.name ?? ''} replaces ${players.find((p) => p.id === outId)?.name ?? ''}`].slice(-8), playerPerformances: [...m.playerPerformances.filter((pp) => pp.id !== outId), { id: inId, rating: players.find((p) => p.id === inId)?.rating ?? 70 }] } : m); showToast('Substitution made · fresh legs on the pitch') }} continueWeek={continueWeek} openModal={openModal} setActiveView={setActiveView} />)}
           {activeView === 'player' && <PlayerHubView profile={profile} player={selectedPlayer} clockLabel={clockLabel} simDay={simDay} playerMatchPhase={playerMatchPhase} playerMatch={playerMatch} actionTimer={matchActionTimer} matchSpeed={simulationSpeed} onSetSpeed={(s) => setSimulationSpeed(s as 0|1|2|20)} trainingProgress={trainingProgress} rivalryScore={rivalryScore} managerTrust={managerTrust} simulationEvents={simulationEvents} onAdvanceMatch={advancePlayerMatch} onMatchAction={choosePlayerMatchAction} openModal={openModal} setActiveView={setActiveView} />}
           {activeView === 'squad' && <SquadView players={players} selectedPlayer={selectedPlayer} setSelectedPlayerId={setSelectedPlayerId} openModal={openModal} />}
           {activeView === 'market' && <MarketView filteredProspects={filteredProspects} search={search} setSearch={setSearch} marketFilter={marketFilter} setMarketFilter={setMarketFilter} shortlist={shortlist} scouted={scouted} negotiations={negotiations} toggleShortlist={toggleShortlist} scoutProspect={scoutProspect} startNegotiation={startNegotiation} budget={budget} openModal={openModal} />}
@@ -1058,9 +1109,32 @@ function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; 
   return <div className="page-header"><div><span className="section-kicker">{eyebrow}</span><h1>{title}</h1><p>{description}</p></div>{action}</div>
 }
 
-function HubView({ profile, budget, dateIndex, fixtureResults, continueWeek, openModal, setActiveView }: { profile: CareerProfile; budget: number; dateIndex: number; fixtureResults: Record<number, string>; continueWeek: () => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
+function ManagerMatchdayPanel({ match, profile, players, matchSpeed, onSetSpeed, onFinish, onSubPlayer }: { match: ManagerMatch; profile: CareerProfile; players: Player[]; matchSpeed: number; onSetSpeed: (s: number) => void; onFinish: () => void; onSubPlayer: (outId: number, inId: number) => void }) {
+  const tiredPlayer = match.playerPerformances.find((pp) => { const p = players.find((pl) => pl.id === pp.id); return p && p.fitness < 75 && pp.rating < (p.rating - 2) })
+  const availableSubs = players.filter((p) => !match.playerPerformances.some((pp) => pp.id === p.id)).slice(0, 3)
+  return <div className="manager-matchday">
+    <div className="manager-match-hero">
+      <div className="manager-match-header"><span className="live-pill"><i /> LIVE · {match.minute}'</span><div className="matchday-speed"><button className={`speed-button ${matchSpeed === 1 ? 'active' : ''}`} onClick={() => onSetSpeed(1)}>1×</button><button className={`speed-button ${matchSpeed === 2 ? 'active' : ''}`} onClick={() => onSetSpeed(2)}>2×</button><button className={`speed-button ${matchSpeed === 10 ? 'active' : ''}`} onClick={() => onSetSpeed(10)}>10×</button></div></div>
+      <div className="manager-scoreboard"><div className="manager-club"><div className="club-crest" style={{ background: profile.primaryColor, color: '#172219' }}>{profile.clubShort}</div><b>{profile.clubName}</b></div><div className="manager-score-center"><strong>{match.teamGoals}</strong><span>—</span><strong>{match.opponentGoals}</strong></div><div className="manager-club away"><div className="opponent-crest" style={{ background: match.crest }}>{match.opponentShort}</div><b>{match.opponent}</b></div></div>
+    </div>
+    <div className="manager-analytics">
+      <div className="analytics-card"><span>POSSESSION</span><div className="analytics-bar"><i style={{ width: `${match.possession}%`, background: match.possession > 50 ? 'var(--cyan)' : 'var(--amber)' }} /><small>{match.possession}%</small></div></div>
+      <div className="analytics-card"><span>SHOTS</span><b>{match.shots} <small>vs {match.opponentShots}</small></b></div>
+      <div className="analytics-card"><span>FORM INDEX</span><b className="lime-text">{players.reduce((t, p) => t + p.form, 0) / players.length | 0}</b></div>
+    </div>
+    <div className="manager-events">{match.events.slice(-5).map((e, i) => <div key={i} className={`event-item ${e.includes('GOAL') || e.includes('goal') ? 'event-goal' : e.includes('Half-time') ? 'event-halftime' : ''}`}>{e}</div>)}</div>
+    <div className="manager-performances"><span className="section-kicker">PLAYER PERFORMANCES</span>
+      <div className="perf-list">{match.playerPerformances.slice(0, 6).map((pp) => { const player = players.find((p) => p.id === pp.id); return player ? <div key={pp.id} className={`perf-row ${pp.rating > player.rating ? 'hot' : pp.rating < player.rating - 2 ? 'cold' : ''}`}><div className="player-avatar" style={{ background: player.color }}>{player.initials}</div><span>{player.name.split(' ').pop()}</span><strong>{pp.rating.toFixed(1)}</strong></div> : null })}</div>
+    </div>
+    {tiredPlayer && availableSubs.length > 0 && (match.minute === 45 || (match.minute > 45 && match.minute < 85)) && <div className="manager-subs"><span className="section-kicker">SUGGESTED SUBSTITUTION</span><p>{players.find((p) => p.id === tiredPlayer.id)?.name} is tiring. Fresh legs could change the game.</p><div className="sub-options">{availableSubs.slice(0, 2).map((sub) => <button key={sub.id} className="sub-button" onClick={() => onSubPlayer(tiredPlayer.id, sub.id)}><div className="player-avatar" style={{ background: sub.color }}>{sub.initials}</div><b>{sub.name}</b><small>{sub.position} · {sub.rating} OVR</small></button>)}</div></div>}
+    {match.minute >= 85 && <button className="primary-button full-button" onClick={onFinish}>Final whistle <Icon>→</Icon></button>}
+  </div>
+}
+
+function HubView({ profile, budget, dateIndex, fixtureResults, players, managerMatch, matchSpeed, onSetSpeed, onFinishMatch, onSubPlayer, continueWeek, openModal, setActiveView }: { profile: CareerProfile; budget: number; dateIndex: number; fixtureResults: Record<string, string>; players: Player[]; managerMatch: ManagerMatch | null; matchSpeed: number; onSetSpeed: (s: number) => void; onFinishMatch: () => void; onSubPlayer: (outId: number, inId: number) => void; continueWeek: () => void; openModal: (title: string) => void; setActiveView: (view: View) => void }) {
   const fixture = seasonFixtures[dateIndex]
   const currentResult = fixtureResults[dateIndex]
+  if (managerMatch) return <ManagerMatchdayPanel match={managerMatch} profile={profile} players={players} matchSpeed={matchSpeed} onSetSpeed={onSetSpeed} onFinish={onFinishMatch} onSubPlayer={onSubPlayer} />
   return <>
     <PageHeader eyebrow={`MATCHWEEK · ${fixture.date} · ${profile.league.toUpperCase()}`} title="Matchweek starts now." description={`A new week, a full squad, and one clear objective: put ${profile.clubName} in position to win.`} action={<button className="primary-button continue-button" onClick={continueWeek}><span className="pulse-ring" />Continue week <Icon>→</Icon></button>} />
     <div className="hero-grid">
