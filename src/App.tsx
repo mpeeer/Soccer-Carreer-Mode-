@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 
 type View = 'hub' | 'player' | 'squad' | 'market' | 'academy' | 'club'
@@ -105,7 +105,25 @@ type SavedCareer = {
   simulationEvents: SimulationEvent[]
 }
 
+type SavedCareerEnvelope = {
+  version: 1
+  savedAt: number
+  career: SavedCareer
+}
+
+type SaveStatus = 'saved' | 'saving' | 'error'
+
+const SAVE_KEY = 'northstar-career-save'
+const PROFILE_KEY = 'northstar-career-profile'
+const CURRENT_SAVE_VERSION = 1
+
 const validPositions: Position[] = ['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST']
+
+function isSavedCareerEnvelope(value: unknown): value is SavedCareerEnvelope {
+  if (!value || typeof value !== 'object') return false
+  const envelope = value as Partial<SavedCareerEnvelope>
+  return envelope.version === CURRENT_SAVE_VERSION && typeof envelope.savedAt === 'number' && Number.isFinite(envelope.savedAt) && Boolean(envelope.career)
+}
 
 function isSavedProfile(value: unknown): value is CareerProfile {
   if (!value || typeof value !== 'object') return false
@@ -133,11 +151,13 @@ function isSavedPlayerMatch(value: unknown): value is PlayerMatch {
   return typeof match.opponent === 'string' && typeof match.opponentShort === 'string' && boundedNumber(match.minute, -1, 0, 90) === match.minute && boundedNumber(match.rating, -1, 0, 10) === match.rating && boundedNumber(match.goals, -1, 0, 10) === match.goals && boundedNumber(match.assists, -1, 0, 10) === match.assists && boundedNumber(match.passes, -1, 0, 200) === match.passes && Array.isArray(match.choices) && match.choices.every((choice) => typeof choice === 'string') && boundedNumber(match.teamGoals, -1, 0, 20) === match.teamGoals && boundedNumber(match.opponentGoals, -1, 0, 20) === match.opponentGoals && boundedNumber(match.stamina, -1, 0, 100) === match.stamina && typeof match.lastEvent === 'string'
 }
 
-function readSavedCareer(): SavedCareer | null {
+function readSavedCareer(): (SavedCareer & { savedAt?: number }) | null {
   try {
-    const raw = window.localStorage.getItem('northstar-career-save')
+    const raw = window.localStorage.getItem(SAVE_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<SavedCareer>
+    const rawParsed = JSON.parse(raw) as unknown
+    const envelope = isSavedCareerEnvelope(rawParsed) ? rawParsed : null
+    const parsed = (envelope?.career ?? rawParsed) as Partial<SavedCareer>
     if (!isSavedProfile(parsed.profile)) return null
     const profile = parsed.profile
     const allowedViews = profile.mode === 'player' ? ['hub', 'player', 'squad', 'club'] : ['hub', 'squad', 'market', 'academy', 'club']
@@ -175,7 +195,8 @@ function readSavedCareer(): SavedCareer | null {
       rivalryScore: boundedNumber(parsed.rivalryScore, 48, 0, 100),
       managerTrust: boundedNumber(parsed.managerTrust, 74, 0, 100),
       simulationEvents: Array.isArray(parsed.simulationEvents) ? parsed.simulationEvents.filter((event): event is SimulationEvent => Boolean(event && typeof event.id === 'number' && typeof event.label === 'string' && typeof event.detail === 'string')).slice(0, 8) : [],
-    }
+      ...(envelope ? { savedAt: envelope.savedAt } : {}),
+    } as SavedCareer & { savedAt?: number }
   } catch {
     return null
   }
@@ -235,6 +256,11 @@ function formatMoney(value: number) {
   return `€${Math.round(value / 1000)}K`
 }
 
+function formatSavedTime(value: number | null) {
+  if (!value) return 'Not saved'
+  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 function createCareerPlayer(profile: CareerProfile): Player {
   const initials = profile.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'NP'
   return { id: 900, name: profile.name, position: profile.playerPosition, rating: 66, potential: 86, age: 18, form: 72, morale: 82, fitness: 96, value: 2500000, wage: 6500, contract: 4, role: 'Prospect', initials, color: profile.primaryColor }
@@ -279,6 +305,8 @@ function App() {
   const [rivalryScore, setRivalryScore] = useState(savedCareer?.rivalryScore ?? 48)
   const [managerTrust, setManagerTrust] = useState(savedCareer?.managerTrust ?? 74)
   const [simulationEvents, setSimulationEvents] = useState<SimulationEvent[]>(savedCareer?.simulationEvents ?? [])
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
+  const [savedAt, setSavedAt] = useState<number | null>(savedCareer?.savedAt ?? null)
   const processedDayRef = useRef(savedCareer?.simDay ?? 11)
   const previousMinuteRef = useRef(savedCareer?.simMinute ?? 9 * 60 + 30)
   const careerMode = profile?.mode ?? 'manager'
@@ -290,6 +318,23 @@ function App() {
     const matchesFilter = marketFilter === 'All' || (marketFilter === 'Shortlist' ? shortlist.includes(prospect.id) : scouted.includes(prospect.id))
     return matchesSearch && matchesFilter
   }), [marketFilter, search, shortlist, scouted])
+
+  const saveCareer = useCallback(() => {
+    if (!profile) return false
+    const nextSavedAt = Date.now()
+    const career: SavedCareer = { profile, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents }
+    const envelope: SavedCareerEnvelope = { version: CURRENT_SAVE_VERSION, savedAt: nextSavedAt, career }
+    try {
+      window.localStorage.setItem(SAVE_KEY, JSON.stringify(envelope))
+      window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
+      setSavedAt(nextSavedAt)
+      setSaveStatus('saved')
+      return true
+    } catch {
+      setSaveStatus('error')
+      return false
+    }
+  }, [profile, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents])
 
   useEffect(() => {
     if (!profile || !isClockRunning || simulationSpeed === 0 || playerMatchPhase) return
@@ -348,13 +393,25 @@ function App() {
 
   useEffect(() => {
     if (!profile) return
-    const saveTimer = window.setTimeout(() => {
-      const save: SavedCareer = { profile, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents }
-      window.localStorage.setItem('northstar-career-save', JSON.stringify(save))
-      window.localStorage.setItem('northstar-career-profile', JSON.stringify(profile))
-    }, 800)
+    setSaveStatus('saving')
+    const saveTimer = window.setTimeout(saveCareer, 800)
     return () => window.clearTimeout(saveTimer)
-  }, [profile, activeView, players, shortlist, scouted, negotiations, fixtureResults, dateIndex, budget, selectedPlayerId, simulationSpeed, isClockRunning, simMinute, simDay, playerMatchPhase, playerMatch, trainingProgress, rivalryScore, managerTrust, simulationEvents])
+  }, [profile, saveCareer])
+
+  useEffect(() => {
+    const flushSave = () => { saveCareer() }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flushSave()
+    }
+    window.addEventListener('pagehide', flushSave)
+    window.addEventListener('beforeunload', flushSave)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('pagehide', flushSave)
+      window.removeEventListener('beforeunload', flushSave)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [saveCareer])
 
   const clockLabel = `${String(Math.floor(simMinute / 60)).padStart(2, '0')}:${String(simMinute % 60).padStart(2, '0')}`
 
@@ -385,8 +442,10 @@ function App() {
   }
 
   const resetCareer = () => {
-    window.localStorage.removeItem('northstar-career-save')
-    window.localStorage.removeItem('northstar-career-profile')
+    window.localStorage.removeItem(SAVE_KEY)
+    window.localStorage.removeItem(PROFILE_KEY)
+    setSavedAt(null)
+    setSaveStatus('saved')
     setProfile(null)
     setActiveView('hub')
     setPlayers(initialPlayers)
@@ -553,7 +612,7 @@ function App() {
             <div><b>Maya Chen</b><span>Head of recruitment</span></div>
             <Icon>⋯</Icon>
           </div>
-          <div className="save-state"><span className="status-dot" /> Autosave on <span>20:48</span></div>
+          <div className={`save-state save-${saveStatus}`}><span className="status-dot" /> {saveStatus === 'saving' ? 'Saving offline…' : saveStatus === 'error' ? 'Save unavailable' : 'Saved offline'} <span>{formatSavedTime(savedAt)}</span></div>
         </div>
       </aside>
 
@@ -562,6 +621,7 @@ function App() {
           <div className="mobile-brand"><div className="brand-mark">N<span>+</span></div><b>NORTHSTAR</b></div>
           <div className="breadcrumbs"><span>{careerMode === 'player' ? 'PLAYER CAREER' : 'MANAGER CAREER'}</span><Icon>›</Icon><b>{visibleNavItems.find((item) => item.id === activeView)?.label.toUpperCase()}</b></div>
           <div className="top-actions">
+            <button className="save-game-button" onClick={() => showToast(saveCareer() ? 'Career saved offline' : 'Offline save failed')}><Icon>⌁</Icon> Save game</button>
             {careerMode === 'player' && playerMatchPhase && <button className="matchday-alert" aria-label="Return to live matchday" title="Return to live matchday" onClick={() => setActiveView('player')}><span className="matchday-alert-dot" /> Matchday live <Icon>→</Icon></button>}
             <div className="clock-control" aria-label="Simulation speed"><span className={`clock-state ${isClockRunning ? 'running' : 'paused'}`}><i />{isClockRunning ? clockLabel : 'PAUSED'}</span><div className="speed-options"><button aria-label="Pause simulation" title="Pause simulation" className={simulationSpeed === 0 ? 'active' : ''} onClick={() => { setSimulationSpeed(0); setIsClockRunning(false) }}>Ⅱ</button><button aria-label="Run simulation at 1x" title="Run at 1x" className={simulationSpeed === 1 && isClockRunning ? 'active' : ''} onClick={() => { setSimulationSpeed(1); setIsClockRunning(true) }}>1×</button><button aria-label="Run simulation at 2x" title="Run at 2x" className={simulationSpeed === 2 ? 'active' : ''} onClick={() => { setSimulationSpeed(2); setIsClockRunning(true) }}>2×</button><button aria-label="Run simulation at 20x" title="Run at 20x" className={simulationSpeed === 20 ? 'active' : ''} onClick={() => { setSimulationSpeed(20); setIsClockRunning(true) }}>20×</button></div></div>
             <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setShowNotifications(!showNotifications)}><Icon>♢</Icon><i>3</i></button>
